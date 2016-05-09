@@ -1,0 +1,14 @@
+## Overrides from NAStools
+# Overrides for ReadyNAS packaging
+nastools-netdata: non-standard-toplevel-dir
+nastools-netdata: file-in-unusual-dir
+nastools-netdata: non-etc-file-marked-as-conffile apps/nastools-netdata/etc/netdata/*
+nastools-netdata: extra-license-file usr/share/doc/nastools-netdata/COPYING.gz
+nastools-netdata: extra-license-file usr/share/doc/nastools-netdata/LICENSE.md
+
+## Overrides from upstream
+# FontAwesome is at least in the fonts-font-awesome package, but this is
+# not available in wheezy. glyphicons-halflings-regular isn't currently in
+# a Debian package. Therefore don't complain about shipping them with netdata
+# for the time being.
+nastools-netdata: font-in-non-font-package apps/nastools-netdata/share/netdata/web/fonts/*

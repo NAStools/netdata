@@ -1,0 +1,17 @@
+## Overrides from NAStools
+
+# Nothing we can do about these, since they're upstream
+netdata source: source-is-missing web/lib/bootstrap-toggle.min.js
+netdata source: source-is-missing web/lib/bootstrap.min.js
+netdata source: source-is-missing web/lib/c3.min.js
+netdata source: source-is-missing web/lib/d3.min.js
+netdata source: source-is-missing web/lib/dygraph-combined.js line length is 32019 characters (>512)
+netdata source: source-is-missing web/lib/gauge.min.js
+netdata source: source-is-missing web/lib/jquery-1.12.0.min.js
+netdata source: source-is-missing web/lib/jquery.easypiechart.min.js
+netdata source: source-is-missing web/lib/jquery.nanoscroller.min.js
+netdata source: source-is-missing web/lib/jquery.peity.min.js
+netdata source: source-is-missing web/lib/jquery.sparkline.min.js
+netdata source: source-is-missing web/lib/morris.min.js
+netdata source: source-is-missing web/lib/raphael-min.js
+netdata source: source-is-missing web/old/index.js line length is 303 characters (>256)

@@ -1,0 +1,13 @@
+<Application resource-id="nastools-netdata">
+  <Version></Version>
+  <MinFirmwareVer>6.4.2</MinFirmwareVer>
+  <Name>netdata NT</Name>
+  <Author>NAStools</Author>
+  <RequireReboot>0</RequireReboot>
+  <LaunchURL>https://localhost/apps/nastools-netdata/</LaunchURL>
+  <InfoURL>https://github.com/nastools/netdata</InfoURL>
+  <DebianPackage>nastools-netdata</DebianPackage>
+  <ServiceName>fvapp-nastools-netdata.service</ServiceName>
+  <Description lang="en-us">Highly optimized Linux daemon providing real-time performance monitoring</Description>
+  <ConfigURL/>
+</Application>

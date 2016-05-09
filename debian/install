@@ -1,0 +1,5 @@
+debian/netdata.conf apps/nastools-netdata/etc/netdata
+debian/readynas/fvapp-nastools-netdata.service apps/nastools-netdata
+debian/readynas/config.xml apps/nastools-netdata
+debian/readynas/logo.png apps/nastools-netdata
+debian/readynas/https.conf apps/nastools-netdata

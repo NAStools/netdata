@@ -1,0 +1,13 @@
+[Unit]
+Description=netdata real-time system monitoring
+After=network.target apache2.service
+
+[Service]
+Type=simple
+WorkingDirectory=/tmp
+User=root
+Group=root
+ExecStart=/apps/nastools-netdata/sbin/netdata -nd -pidfile /var/run/nastools-netdata.pid
+
+[Install]
+WantedBy=multi-user.target

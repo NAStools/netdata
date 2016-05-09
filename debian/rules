@@ -1,0 +1,13 @@
+#!/usr/bin/make -f
+#export DH_VERBOSE = 1
+
+export DEB_BUILD_MAINT_OPTIONS = hardening=+all
+
+%:
+	dh $@ --with autoreconf
+
+override_dh_auto_configure:
+	dh_auto_configure -- --prefix="/apps/nastools-netdata" \
+	--sysconfdir="/apps/nastools-netdata/etc" \
+	--localstatedir="/apps/nastools-netdata/var" \
+	--with-zlib --with-math --with-user=nastools-netdata

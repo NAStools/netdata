@@ -1,0 +1,3 @@
+/apps/nastools-netdata/etc/netdata/netdata.conf
+/apps/nastools-netdata/etc/netdata/apps_groups.conf
+/apps/nastools-netdata/etc/netdata/charts.d.conf
