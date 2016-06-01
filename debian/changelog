@@ -1,3 +1,9 @@
+netdata (1.2.0-nt1) unstable; urgency=low
+
+  * Imported Upstream version 1.2.0
+
+ -- NAStools <dev@nas.tools>  Wed, 01 Jun 2016 10:08:58 -0700
+
 netdata (1.1.0-nt1) unstable; urgency=low
 
   * Initial release
