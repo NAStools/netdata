@@ -39,6 +39,9 @@
 /* use this user to drop privileged */
 #undef NETDATA_USER
 
+/* uuid settings */
+#undef NETDATA_WITH_UUID
+
 /* zlib settings */
 #undef NETDATA_WITH_ZLIB
 

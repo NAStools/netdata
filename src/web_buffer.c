@@ -53,7 +53,7 @@ void buffer_reset(BUFFER *wb)
 
 const char *buffer_tostring(BUFFER *wb)
 {
-	buffer_need_bytes(wb, (size_t)1);
+	buffer_need_bytes(wb, 1);
 	wb->buffer[wb->len] = '\0';
 
 	buffer_overflow_check(wb);
@@ -78,15 +78,16 @@ void buffer_strcat(BUFFER *wb, const char *txt)
 {
 	if(unlikely(!txt || !*txt)) return;
 
-	buffer_need_bytes(wb, (size_t)(1));
+	buffer_need_bytes(wb, 1);
 
-	char *s = &wb->buffer[wb->len], *end = &wb->buffer[wb->size];
+	char *s = &wb->buffer[wb->len], *start, *end = &wb->buffer[wb->size];
 	long len = wb->len;
 
-	while(*txt && s != end) {
+	start = s;
+	while(*txt && s != end)
 		*s++ = *txt++;
-		len++;
-	}
+
+	len += s - start;
 
 	wb->len = len;
 	buffer_overflow_check(wb);
@@ -110,44 +111,45 @@ void buffer_snprintf(BUFFER *wb, size_t len, const char *fmt, ...)
 {
 	if(unlikely(!fmt || !*fmt)) return;
 
-	buffer_need_bytes(wb, len+1);
+	buffer_need_bytes(wb, len + 1);
 
 	va_list args;
 	va_start(args, fmt);
-	wb->len += vsnprintf(&wb->buffer[wb->len], len+1, fmt, args);
+	wb->len += vsnprintfz(&wb->buffer[wb->len], len, fmt, args);
 	va_end(args);
 
 	buffer_overflow_check(wb);
 
-	// the buffer is \0 terminated by vsnprintf
+	// the buffer is \0 terminated by vsnprintfz
 }
 
 void buffer_vsprintf(BUFFER *wb, const char *fmt, va_list args)
 {
 	if(unlikely(!fmt || !*fmt)) return;
 
-	buffer_need_bytes(wb, 1);
+	buffer_need_bytes(wb, 2);
 
-	size_t len = wb->size - wb->len;
+	size_t len = wb->size - wb->len - 1;
 
-	wb->len += vsnprintf(&wb->buffer[wb->len], len, fmt, args);
+	wb->len += vsnprintfz(&wb->buffer[wb->len], len, fmt, args);
 
 	buffer_overflow_check(wb);
 
-	// the buffer is \0 terminated by vsnprintf
+	// the buffer is \0 terminated by vsnprintfz
 }
 
 void buffer_sprintf(BUFFER *wb, const char *fmt, ...)
 {
 	if(unlikely(!fmt || !*fmt)) return;
 
-	buffer_need_bytes(wb, 1);
+	buffer_need_bytes(wb, 2);
 
-	size_t len = wb->size - wb->len, wrote;
+	size_t len = wb->size - wb->len - 1;
+	size_t wrote;
 
 	va_list args;
 	va_start(args, fmt);
-	wrote = (size_t) vsnprintf(&wb->buffer[wb->len], len, fmt, args);
+	wrote = (size_t) vsnprintfz(&wb->buffer[wb->len], len, fmt, args);
 	va_end(args);
 
 	if(unlikely(wrote >= len)) {
@@ -187,43 +189,52 @@ void buffer_rrd_value(BUFFER *wb, calculated_number value)
 // generate a javascript date, the fastest possible way...
 void buffer_jsdate(BUFFER *wb, int year, int month, int day, int hours, int minutes, int seconds)
 {
-	//         10        20        30      = 35
+  //         10        20        30      = 35
 	// 01234567890123456789012345678901234
 	// Date(2014,04,01,03,28,20)
 
 	buffer_need_bytes(wb, 30);
 
-	char *b = &wb->buffer[wb->len];
+	char *b = &wb->buffer[wb->len], *p;
+  unsigned int *q = (unsigned int *)b;  
 
-	int i = 0;
-	b[i++]='D';
-	b[i++]='a';
-	b[i++]='t';
-	b[i++]='e';
-	b[i++]='(';
-	b[i++]= (char) (48 + year / 1000); year -= (year / 1000) * 1000;
-	b[i++]= (char) (48 + year / 100); year -= (year / 100) * 100;
-	b[i++]= (char) (48 + year / 10);
-	b[i++]= (char) (48 + year % 10);
-	b[i++]=',';
-	b[i]= (char) (48 + month / 10); if(b[i] != '0') i++;
-	b[i++]= (char) (48 + month % 10);
-	b[i++]=',';
-	b[i]= (char) (48 + day / 10); if(b[i] != '0') i++;
-	b[i++]= (char) (48 + day % 10);
-	b[i++]=',';
-	b[i]= (char) (48 + hours / 10); if(b[i] != '0') i++;
-	b[i++]= (char) (48 + hours % 10);
-	b[i++]=',';
-	b[i]= (char) (48 + minutes / 10); if(b[i] != '0') i++;
-	b[i++]= (char) (48 + minutes % 10);
-	b[i++]=',';
-	b[i]= (char) (48 + seconds / 10); if(b[i] != '0') i++;
-	b[i++]= (char) (48 + seconds % 10);
-	b[i++]=')';
-	b[i]='\0';
+  #if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+    *q++ = 0x65746144;  // "Date" backwards.
+  #else
+    *q++ = 0x44617465;  // "Date"
+  #endif
+  p = (char *)q;
 
-	wb->len += i;
+  *p++ = '(';
+  *p++ = '0' + year / 1000; year %= 1000;
+  *p++ = '0' + year / 100;  year %= 100;
+  *p++ = '0' + year / 10;
+  *p++ = '0' + year % 10;
+  *p++ = ',';
+  *p   = '0' + month / 10; if (*p != '0') p++;
+  *p++ = '0' + month % 10;
+  *p++ = ',';
+  *p   = '0' + day / 10; if (*p != '0') p++;
+  *p++ = '0' + day % 10;
+  *p++ = ',';
+  *p   = '0' + hours / 10; if (*p != '0') p++;
+  *p++ = '0' + hours % 10;
+  *p++ = ',';
+  *p   = '0' + minutes / 10; if (*p != '0') p++;
+  *p++ = '0' + minutes % 10;
+  *p++ = ',';
+  *p   = '0' + seconds / 10; if (*p != '0') p++;
+  *p++ = '0' + seconds % 10;
+
+  unsigned short *r = (unsigned short *)p;
+
+#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+    *r++ = 0x0029;  // ")\0" backwards.  
+  #else
+    *r++ = 0x2900;  // ")\0"
+  #endif
+
+	wb->len += (size_t)((char *)r - b - 1);
 
 	// terminate it
 	wb->buffer[wb->len] = '\0';
@@ -240,30 +251,30 @@ void buffer_date(BUFFER *wb, int year, int month, int day, int hours, int minute
 	buffer_need_bytes(wb, 36);
 
 	char *b = &wb->buffer[wb->len];
+  char *p = b;
 
-	int i = 0;
-	b[i++]= (char) (48 + year / 1000); year -= (year / 1000) * 1000;
-	b[i++]= (char) (48 + year / 100); year -= (year / 100) * 100;
-	b[i++]= (char) (48 + year / 10);
-	b[i++]= (char) (48 + year % 10);
-	b[i++]='-';
-	b[i++]= (char) (48 + month / 10);
-	b[i++]= (char) (48 + month % 10);
-	b[i++]='-';
-	b[i++]= (char) (48 + day / 10);
-	b[i++]= (char) (48 + day % 10);
-	b[i++]=' ';
-	b[i++]= (char) (48 + hours / 10);
-	b[i++]= (char) (48 + hours % 10);
-	b[i++]=':';
-	b[i++]= (char) (48 + minutes / 10);
-	b[i++]= (char) (48 + minutes % 10);
-	b[i++]=':';
-	b[i++]= (char) (48 + seconds / 10);
-	b[i++]= (char) (48 + seconds % 10);
-	b[i]='\0';
+  *p++ = '0' + year / 1000; year %= 1000;
+  *p++ = '0' + year / 100;  year %= 100;
+  *p++ = '0' + year / 10;
+  *p++ = '0' + year % 10;
+  *p++ = '-';
+  *p++ = '0' + month / 10;
+  *p++ = '0' + month % 10;
+  *p++ = '-';
+  *p++ = '0' + day / 10;
+  *p++ = '0' + day % 10;
+  *p++ = ' ';
+  *p++ = '0' + hours / 10;
+  *p++ = '0' + hours % 10;
+  *p++ = ':';
+  *p++ = '0' + minutes / 10;
+  *p++ = '0' + minutes % 10;
+  *p++ = ':';
+  *p++ = '0' + seconds / 10;
+  *p++ = '0' + seconds % 10;
+  *p = '\0';
 
-	wb->len += i;
+	wb->len += (size_t)(p - b);
 
 	// terminate it
 	wb->buffer[wb->len] = '\0';

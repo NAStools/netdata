@@ -40,7 +40,7 @@
 		and that you have chown it to be owned by netdata:netdata
 	-->
 	<!-- <script type="text/javascript" src="http://my.server:19999/dashboard.js"></script> -->
-	<script type="text/javascript" src="dashboard.js"></script>
+	<script type="text/javascript" src="dashboard.js?v37"></script>
 
 	<script>
 	// Set options for TV operation
@@ -52,12 +52,20 @@
 	// set this to false, to always show all dimensions
 	NETDATA.options.current.eliminate_zero_dimensions = true;
 	
+	// lower the pressure on this browser
+	NETDATA.options.current.concurrent_refreshes = false;
+
+	// if the tv browser is too slow (a pi?)
+	// set this to false
+	NETDATA.options.current.parallel_refresher = true;
+
 	// always update the charts, even if focus is lost
-	NETDATA.options.current.stop_updates_when_focus_is_lost = false;
+	// NETDATA.options.current.stop_updates_when_focus_is_lost = false;
 
 	// Since you may render charts from many servers and any of them may
 	// become offline for some time, the charts will break.
 	// This will reload the page every RELOAD_EVERY minutes
+
 	var RELOAD_EVERY = 5;
 	setTimeout(function(){
 		location.reload();
@@ -69,9 +77,6 @@
 <body>
 
 <div style="width: 100%; text-align: center; display: inline-block;">
-
-	<b>PLEASE RESPECT OUR DEMO SITE RESOURCES - DON'T PUT THIS AS-IS ON TV - CLOSE IT WHEN YOU DON'T NEED IT !</b>
-	
 
 	<div style="width: 100%; height: 24vh; text-align: center; display: inline-block;">
 		<div style="width: 100%; height: 15px; text-align: center; display: inline-block;">

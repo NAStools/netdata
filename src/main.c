@@ -34,11 +34,13 @@
 #include "plugin_checks.h"
 #include "plugin_proc.h"
 #include "plugin_nfacct.h"
+#include "registry.h"
 
 #include "main.h"
-#include "../config.h"
 
-int netdata_exit = 0;
+extern void *cgroups_main(void *ptr);
+
+volatile sig_atomic_t netdata_exit = 0;
 
 void netdata_cleanup_and_exit(int ret)
 {
@@ -84,6 +86,7 @@ struct netdata_static_thread static_threads[] = {
 	{"tc",			"plugins",	"tc",			1, NULL, NULL,	tc_main},
 	{"idlejitter",	"plugins",	"idlejitter",	1, NULL, NULL,	cpuidlejitter_main},
 	{"proc",		"plugins",	"proc",			1, NULL, NULL,	proc_main},
+	{"cgroups",		"plugins",	"cgroups",		1, NULL, NULL,	cgroups_main},
 
 #ifdef INTERNAL_PLUGIN_NFACCT
 	// nfacct requires root access
@@ -120,19 +123,7 @@ int killpid(pid_t pid, int sig)
 	}
 	else {
 		errno = 0;
-
-		void (*old)(int);
-		old = signal(sig, SIG_IGN);
-		if(old == SIG_ERR) {
-			error("Cannot overwrite signal handler for signal %d", sig);
-			old = sig_handler;
-		}
-
 		ret = kill(pid, sig);
-
-		if(signal(sig, old) == SIG_ERR)
-			error("Cannot restore signal handler for signal %d", sig);
-
 		if(ret == -1) {
 			switch(errno) {
 				case ESRCH:
@@ -239,8 +230,7 @@ int main(int argc, char **argv)
 		else if(strcmp(argv[i], "-nodaemon") == 0 || strcmp(argv[i], "-nd") == 0) dont_fork = 1;
 		else if(strcmp(argv[i], "-pidfile") == 0 && (i+1) < argc) {
 			i++;
-			strncpy(pidfile, argv[i], FILENAME_MAX);
-			pidfile[FILENAME_MAX] = '\0';
+			strncpyz(pidfile, argv[i], FILENAME_MAX);
 		}
 		else if(strcmp(argv[i], "--unittest")  == 0) {
 			rrd_update_every = 1;
@@ -273,8 +263,10 @@ int main(int argc, char **argv)
 	setenv("NETDATA_PLUGINS_DIR", config_get("global", "plugins directory"  , PLUGINS_DIR), 1);
 	setenv("NETDATA_WEB_DIR"    , config_get("global", "web files directory", WEB_DIR)    , 1);
 	setenv("NETDATA_CACHE_DIR"  , config_get("global", "cache directory"    , CACHE_DIR)  , 1);
+	setenv("NETDATA_LIB_DIR"    , config_get("global", "lib directory"      , VARLIB_DIR) , 1);
 	setenv("NETDATA_LOG_DIR"    , config_get("global", "log directory"      , LOG_DIR)    , 1);
 	setenv("NETDATA_HOST_PREFIX", config_get("global", "host access prefix" , "")         , 1);
+	setenv("HOME"               , config_get("global", "home directory"     , CACHE_DIR)  , 1);
 
 	// avoid extended to stat(/etc/localtime)
 	// http://stackoverflow.com/questions/4554271/how-to-avoid-excessive-stat-etc-localtime-calls-in-strftime-on-linux
@@ -400,9 +392,45 @@ int main(int argc, char **argv)
 
 		// let the plugins know the min update_every
 		{
-			char buf[50];
-			snprintf(buf, 50, "%d", rrd_update_every);
+			char buf[51];
+			snprintfz(buf, 50, "%d", rrd_update_every);
 			setenv("NETDATA_UPDATE_EVERY", buf, 1);
+		}
+
+		// --------------------------------------------------------------------
+
+		// block signals while initializing threads.
+		// this causes the threads to block signals.
+		sigset_t sigset;
+		sigfillset(&sigset);
+
+		if(pthread_sigmask(SIG_BLOCK, &sigset, NULL) == -1) {
+			error("Could not block signals for threads");
+		}
+
+		// Catch signals which we want to use to quit savely
+		struct sigaction sa;
+		sigemptyset(&sa.sa_mask);
+		sigaddset(&sa.sa_mask, SIGHUP);
+		sigaddset(&sa.sa_mask, SIGINT);
+		sigaddset(&sa.sa_mask, SIGTERM);
+		sa.sa_handler = sig_handler;
+		sa.sa_flags = 0;
+		if(sigaction(SIGHUP, &sa, NULL) == -1) {
+			error("Failed to change signal handler for SIGHUP");
+		}
+		if(sigaction(SIGINT, &sa, NULL) == -1) {
+			error("Failed to change signal handler for SIGINT");
+		}
+		if(sigaction(SIGTERM, &sa, NULL) == -1) {
+			error("Failed to change signal handler for SIGTERM");
+		}
+		// Ignore SIGPIPE completely.
+		// INFO: If we add signals here we have to unblock them
+		// at popen.c when running a external plugin.
+		sa.sa_handler = SIG_IGN;
+		if(sigaction(SIGPIPE, &sa, NULL) == -1) {
+			error("Failed to change signal handler for SIGTERM");
 		}
 
 		// --------------------------------------------------------------------
@@ -468,43 +496,23 @@ int main(int argc, char **argv)
 	// never become a problem
 	if(nice(20) == -1) error("Cannot lower my CPU priority.");
 
-	if(become_daemon(dont_fork, 0, user, input_log_file, output_log_file, error_log_file, access_log_file, &access_fd, &stdaccess) == -1) {
+	if(become_daemon(dont_fork, 0, user, input_log_file, output_log_file, error_log_file, access_log_file, &access_fd, &stdaccess) == -1)
 		fatal("Cannot demonize myself.");
-		exit(1);
-	}
 
+#ifdef NETDATA_INTERNAL_CHECKS
 	if(debug_flags != 0) {
 		struct rlimit rl = { RLIM_INFINITY, RLIM_INFINITY };
 		if(setrlimit(RLIMIT_CORE, &rl) != 0)
 			info("Cannot request unlimited core dumps for debugging... Proceeding anyway...");
-
 		prctl(PR_SET_DUMPABLE, 1, 0, 0, 0);
 	}
+#endif /* NETDATA_INTERNAL_CHECKS */
 
 	if(output_log_syslog || error_log_syslog || access_log_syslog)
 		openlog("netdata", LOG_PID, LOG_DAEMON);
 
 	info("NetData started on pid %d", getpid());
 
-
-	// catch all signals
-	for (i = 1 ; i < 65 ;i++) {
-		switch(i) {
-			case SIGKILL: // not catchable
-			case SIGSTOP: // not catchable
-				break;
-
-			case SIGSEGV:
-			case SIGFPE:
-			case SIGCHLD:
-				signal(i, SIG_DFL);
-				break;
-
-			default:
-				signal(i,  sig_handler);
-				break;
-		}
-	}
 
 	// ------------------------------------------------------------------------
 	// get default pthread stack size
@@ -516,6 +524,11 @@ int main(int argc, char **argv)
 		else
 			info("Successfully set pthread stacksize to %zu bytes", wanted_stacksize);
 	}
+
+	// --------------------------------------------------------------------
+	// initialize the registry
+
+	registry_init();
 
 	// ------------------------------------------------------------------------
 	// spawn the threads
@@ -539,18 +552,22 @@ int main(int argc, char **argv)
 		else info("Not starting thread %s.", st->name);
 	}
 
-	// for future use - the main thread
-	while(1) {
-		if(netdata_exit != 0) {
-			netdata_exit++;
+	// ------------------------------------------------------------------------
+	// block signals while initializing threads.
+	sigset_t sigset;
+	sigfillset(&sigset);
 
-			if(netdata_exit > 5) {
-				netdata_cleanup_and_exit(0);
-				exit(0);
-			}
-		}
-		sleep(2);
+	if(pthread_sigmask(SIG_UNBLOCK, &sigset, NULL) == -1) {
+		error("Could not unblock signals for threads");
 	}
 
-	exit(0);
+	// Handle flags set in the signal handler.
+	while(1) {
+		pause();
+		if(netdata_exit) {
+			info("Exit main loop of netdata.");
+			netdata_cleanup_and_exit(0);
+			exit(0);
+		}
+	}
 }

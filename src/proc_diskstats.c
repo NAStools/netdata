@@ -15,17 +15,21 @@
 #include "rrd.h"
 #include "plugin_proc.h"
 
+#include "proc_self_mountinfo.h"
+
 #define RRD_TYPE_DISK "disk"
 
 struct disk {
 	unsigned long major;
 	unsigned long minor;
 	int partition_id;       // -1 = this is not a partition
+	char *family;
 	struct disk *next;
 } *disk_root = NULL;
 
 struct disk *get_disk(unsigned long major, unsigned long minor) {
 	static char path_find_block_device_partition[FILENAME_MAX + 1] = "";
+	static struct mountinfo *mountinfo_root = NULL;
 	struct disk *d;
 
 	// search for it in our RAM list.
@@ -42,8 +46,8 @@ struct disk *get_disk(unsigned long major, unsigned long minor) {
 
 	if(unlikely(!path_find_block_device_partition[0])) {
 		char filename[FILENAME_MAX + 1];
-		snprintf(filename, FILENAME_MAX, "%s%s", global_host_prefix, "/sys/dev/block/%lu:%lu/partition");
-		snprintf(path_find_block_device_partition, FILENAME_MAX, "%s", config_get("plugin:proc:/proc/diskstats", "path to get block device partition", filename));
+		snprintfz(filename, FILENAME_MAX, "%s%s", global_host_prefix, "/sys/dev/block/%lu:%lu/partition");
+		snprintfz(path_find_block_device_partition, FILENAME_MAX, "%s", config_get("plugin:proc:/proc/diskstats", "path to get block device partition", filename));
 	}
 
 	// not found
@@ -68,7 +72,7 @@ struct disk *get_disk(unsigned long major, unsigned long minor) {
 	// find if it is a partition
 	// by reading /sys/dev/block/MAJOR:MINOR/partition
 	char buffer[FILENAME_MAX + 1];
-	snprintf(buffer, FILENAME_MAX, path_find_block_device_partition, major, minor);
+	snprintfz(buffer, FILENAME_MAX, path_find_block_device_partition, major, minor);
 
 	int fd = open(buffer, O_RDONLY, 0666);
 	if(likely(fd != -1)) {
@@ -80,6 +84,28 @@ struct disk *get_disk(unsigned long major, unsigned long minor) {
 			d->partition_id = strtoul(buffer, NULL, 10);
 	}
 	// if the /partition file does not exist, it is a disk, not a partition
+
+	// ------------------------------------------------------------------------
+	// check if we can find its mount point
+
+	// mountinfo_find() can be called with NULL mountinfo_root
+	struct mountinfo *mi = mountinfo_find(mountinfo_root, d->major, d->minor);
+	if(unlikely(!mi)) {
+		// mountinfo_free() can be called with NULL mountinfo_root
+		mountinfo_free(mountinfo_root);
+
+		// re-read mountinfo in case something changed
+		mountinfo_root = mountinfo_read();
+
+		// search again for this disk
+		mi = mountinfo_find(mountinfo_root, d->major, d->minor);
+	}
+
+	if(mi)
+		d->family = strdup(mi->mount_point);
+		// no need to check for NULL
+	else
+		d->family = NULL;
 
 	return d;
 }
@@ -102,15 +128,15 @@ int do_proc_diskstats(int update_every, unsigned long long dt) {
 
 	if(!ff) {
 		char filename[FILENAME_MAX + 1];
-		snprintf(filename, FILENAME_MAX, "%s%s", global_host_prefix, "/proc/diskstats");
+		snprintfz(filename, FILENAME_MAX, "%s%s", global_host_prefix, "/proc/diskstats");
 		ff = procfile_open(config_get("plugin:proc:/proc/diskstats", "filename to monitor", filename), " \t", PROCFILE_FLAG_DEFAULT);
 	}
 	if(!ff) return 1;
 
 	if(!path_to_get_hw_sector_size[0]) {
 		char filename[FILENAME_MAX + 1];
-		snprintf(filename, FILENAME_MAX, "%s%s", global_host_prefix, "/sys/block/%s/queue/hw_sector_size");
-		snprintf(path_to_get_hw_sector_size, FILENAME_MAX, "%s", config_get("plugin:proc:/proc/diskstats", "path to get h/w sector size", filename));
+		snprintfz(filename, FILENAME_MAX, "%s%s", global_host_prefix, "/sys/block/%s/queue/hw_sector_size");
+		snprintfz(path_to_get_hw_sector_size, FILENAME_MAX, "%s", config_get("plugin:proc:/proc/diskstats", "path to get h/w sector size", filename));
 	}
 
 	ff = procfile_readall(ff);
@@ -188,6 +214,9 @@ int do_proc_diskstats(int update_every, unsigned long long dt) {
 			def_enabled = enable_new_disks;
 		else
 			def_enabled = 0;
+
+		char *family = d->family;
+		if(!family) family = disk;
 
 /*
 		switch(major) {
@@ -316,7 +345,7 @@ int do_proc_diskstats(int update_every, unsigned long long dt) {
 		// check which charts are enabled for this disk
 		{
 			char var_name[4096 + 1];
-			snprintf(var_name, 4096, "plugin:proc:/proc/diskstats:%s", disk);
+			snprintfz(var_name, 4096, "plugin:proc:/proc/diskstats:%s", disk);
 			def_enabled = config_get_boolean_ondemand(var_name, "enabled", def_enabled);
 			if(def_enabled == CONFIG_ONDEMAND_NO) continue;
 			if(def_enabled == CONFIG_ONDEMAND_ONDEMAND && !reads && !writes) continue;
@@ -354,13 +383,12 @@ int do_proc_diskstats(int update_every, unsigned long long dt) {
 				char tf[FILENAME_MAX + 1], *t;
 				char ssfilename[FILENAME_MAX + 1];
 
-				strncpy(tf, disk, FILENAME_MAX);
-				tf[FILENAME_MAX] = '\0';
+				strncpyz(tf, disk, FILENAME_MAX);
 
 				// replace all / with !
 				while((t = strchr(tf, '/'))) *t = '!';
 
-				snprintf(ssfilename, FILENAME_MAX, path_to_get_hw_sector_size, tf);
+				snprintfz(ssfilename, FILENAME_MAX, path_to_get_hw_sector_size, tf);
 				FILE *fpss = fopen(ssfilename, "r");
 				if(fpss) {
 					char ssbuffer[1025];
@@ -379,7 +407,7 @@ int do_proc_diskstats(int update_every, unsigned long long dt) {
 				}
 				else error("Cannot read sector size for device %s from %s. Assuming 512.", disk, ssfilename);
 
-				st = rrdset_create(RRD_TYPE_DISK, disk, NULL, disk, "disk.io", "Disk I/O Bandwidth", "kilobytes/s", 2000, update_every, RRDSET_TYPE_AREA);
+				st = rrdset_create(RRD_TYPE_DISK, disk, NULL, family, "disk.io", "Disk I/O Bandwidth", "kilobytes/s", 2000, update_every, RRDSET_TYPE_AREA);
 
 				rrddim_add(st, "reads", NULL, sector_size, 1024, RRDDIM_INCREMENTAL);
 				rrddim_add(st, "writes", NULL, sector_size * -1, 1024, RRDDIM_INCREMENTAL);
@@ -396,7 +424,7 @@ int do_proc_diskstats(int update_every, unsigned long long dt) {
 		if(ddo_ops) {
 			st = rrdset_find_bytype("disk_ops", disk);
 			if(!st) {
-				st = rrdset_create("disk_ops", disk, NULL, disk, "disk.ops", "Disk Completed I/O Operations", "operations/s", 2001, update_every, RRDSET_TYPE_LINE);
+				st = rrdset_create("disk_ops", disk, NULL, family, "disk.ops", "Disk Completed I/O Operations", "operations/s", 2001, update_every, RRDSET_TYPE_LINE);
 				st->isdetail = 1;
 
 				rrddim_add(st, "reads", NULL, 1, 1, RRDDIM_INCREMENTAL);
@@ -414,7 +442,7 @@ int do_proc_diskstats(int update_every, unsigned long long dt) {
 		if(ddo_qops) {
 			st = rrdset_find_bytype("disk_qops", disk);
 			if(!st) {
-				st = rrdset_create("disk_qops", disk, NULL, disk, "disk.qops", "Disk Current I/O Operations", "operations", 2002, update_every, RRDSET_TYPE_LINE);
+				st = rrdset_create("disk_qops", disk, NULL, family, "disk.qops", "Disk Current I/O Operations", "operations", 2002, update_every, RRDSET_TYPE_LINE);
 				st->isdetail = 1;
 
 				rrddim_add(st, "operations", NULL, 1, 1, RRDDIM_ABSOLUTE);
@@ -430,7 +458,7 @@ int do_proc_diskstats(int update_every, unsigned long long dt) {
 		if(ddo_backlog) {
 			st = rrdset_find_bytype("disk_backlog", disk);
 			if(!st) {
-				st = rrdset_create("disk_backlog", disk, NULL, disk, "disk.backlog", "Disk Backlog", "backlog (ms)", 2003, update_every, RRDSET_TYPE_AREA);
+				st = rrdset_create("disk_backlog", disk, NULL, family, "disk.backlog", "Disk Backlog", "backlog (ms)", 2003, update_every, RRDSET_TYPE_AREA);
 				st->isdetail = 1;
 
 				rrddim_add(st, "backlog", NULL, 1, 10, RRDDIM_INCREMENTAL);
@@ -446,7 +474,7 @@ int do_proc_diskstats(int update_every, unsigned long long dt) {
 		if(ddo_util) {
 			st = rrdset_find_bytype("disk_util", disk);
 			if(!st) {
-				st = rrdset_create("disk_util", disk, NULL, disk, "disk.util", "Disk Utilization Time", "% of time working", 2004, update_every, RRDSET_TYPE_AREA);
+				st = rrdset_create("disk_util", disk, NULL, family, "disk.util", "Disk Utilization Time", "% of time working", 2004, update_every, RRDSET_TYPE_AREA);
 				st->isdetail = 1;
 
 				rrddim_add(st, "utilization", NULL, 1, 10, RRDDIM_INCREMENTAL);
@@ -462,7 +490,7 @@ int do_proc_diskstats(int update_every, unsigned long long dt) {
 		if(ddo_mops) {
 			st = rrdset_find_bytype("disk_mops", disk);
 			if(!st) {
-				st = rrdset_create("disk_mops", disk, NULL, disk, "disk.mops", "Disk Merged Operations", "merged operations/s", 2021, update_every, RRDSET_TYPE_LINE);
+				st = rrdset_create("disk_mops", disk, NULL, family, "disk.mops", "Disk Merged Operations", "merged operations/s", 2021, update_every, RRDSET_TYPE_LINE);
 				st->isdetail = 1;
 
 				rrddim_add(st, "reads", NULL, 1, 1, RRDDIM_INCREMENTAL);
@@ -480,7 +508,7 @@ int do_proc_diskstats(int update_every, unsigned long long dt) {
 		if(ddo_iotime) {
 			st = rrdset_find_bytype("disk_iotime", disk);
 			if(!st) {
-				st = rrdset_create("disk_iotime", disk, NULL, disk, "disk.iotime", "Disk Total I/O Time", "milliseconds/s", 2022, update_every, RRDSET_TYPE_LINE);
+				st = rrdset_create("disk_iotime", disk, NULL, family, "disk.iotime", "Disk Total I/O Time", "milliseconds/s", 2022, update_every, RRDSET_TYPE_LINE);
 				st->isdetail = 1;
 
 				rrddim_add(st, "reads", NULL, 1, 1, RRDDIM_INCREMENTAL);
@@ -501,7 +529,7 @@ int do_proc_diskstats(int update_every, unsigned long long dt) {
 			if(ddo_iotime && ddo_ops) {
 				st = rrdset_find_bytype("disk_await", disk);
 				if(!st) {
-					st = rrdset_create("disk_await", disk, NULL, disk, "disk.await", "Average Completed I/O Operation Time", "ms per operation", 2005, update_every, RRDSET_TYPE_LINE);
+					st = rrdset_create("disk_await", disk, NULL, family, "disk.await", "Average Completed I/O Operation Time", "ms per operation", 2005, update_every, RRDSET_TYPE_LINE);
 					st->isdetail = 1;
 
 					rrddim_add(st, "reads", NULL, 1, 1, RRDDIM_ABSOLUTE);
@@ -517,7 +545,7 @@ int do_proc_diskstats(int update_every, unsigned long long dt) {
 			if(ddo_io && ddo_ops) {
 				st = rrdset_find_bytype("disk_avgsz", disk);
 				if(!st) {
-					st = rrdset_create("disk_avgsz", disk, NULL, disk, "disk.avgsz", "Average Completed I/O Operation Bandwidth", "kilobytes per operation", 2006, update_every, RRDSET_TYPE_AREA);
+					st = rrdset_create("disk_avgsz", disk, NULL, family, "disk.avgsz", "Average Completed I/O Operation Bandwidth", "kilobytes per operation", 2006, update_every, RRDSET_TYPE_AREA);
 					st->isdetail = 1;
 
 					rrddim_add(st, "reads", NULL, sector_size, 1024, RRDDIM_ABSOLUTE);
@@ -533,7 +561,7 @@ int do_proc_diskstats(int update_every, unsigned long long dt) {
 			if(ddo_util && ddo_ops) {
 				st = rrdset_find_bytype("disk_svctm", disk);
 				if(!st) {
-					st = rrdset_create("disk_svctm", disk, NULL, disk, "disk.svctm", "Average Service Time", "ms per operation", 2007, update_every, RRDSET_TYPE_LINE);
+					st = rrdset_create("disk_svctm", disk, NULL, family, "disk.svctm", "Average Service Time", "ms per operation", 2007, update_every, RRDSET_TYPE_LINE);
 					st->isdetail = 1;
 
 					rrddim_add(st, "svctm", NULL, 1, 1, RRDDIM_ABSOLUTE);

@@ -181,7 +181,7 @@ void *pluginsd_worker_thread(void *arg)
 
 				if(unlikely(st->debug)) debug(D_PLUGINSD, "PLUGINSD: '%s' is setting dimension %s/%s to %s", cd->fullfilename, st->id, dimension, value?value:"<nothing>");
 
-				if(value) rrddim_set(st, dimension, atoll(value));
+				if(value) rrddim_set(st, dimension, strtoll(value, NULL, 0));
 
 				count++;
 			}
@@ -311,11 +311,11 @@ void *pluginsd_worker_thread(void *arg)
 				}
 
 				long multiplier = 1;
-				if(multiplier_s && *multiplier_s) multiplier = atol(multiplier_s);
+				if(multiplier_s && *multiplier_s) multiplier = strtol(multiplier_s, NULL, 0);
 				if(unlikely(!multiplier)) multiplier = 1;
 
 				long divisor = 1;
-				if(likely(divisor_s && *divisor_s)) divisor = atol(divisor_s);
+				if(likely(divisor_s && *divisor_s)) divisor = strtol(divisor_s, NULL, 0);
 				if(unlikely(!divisor)) divisor = 1;
 
 				if(unlikely(!algorithm || !*algorithm)) algorithm = "absolute";
@@ -351,7 +351,7 @@ void *pluginsd_worker_thread(void *arg)
 #ifdef DETACH_PLUGINS_FROM_NETDATA
 			else if(likely(hash == MYPID_HASH && !strcmp(s, "MYPID"))) {
 				char *pid_s = words[1];
-				pid_t pid = atol(pid_s);
+				pid_t pid = strtod(pid_s, NULL, 0);
 
 				if(likely(pid)) cd->pid = pid;
 				debug(D_PLUGINSD, "PLUGINSD: %s is on pid %d", cd->id, cd->pid);
@@ -470,7 +470,7 @@ void *pluginsd_main(void *ptr)
 			}
 
 			char pluginname[CONFIG_MAX_NAME + 1];
-			snprintf(pluginname, CONFIG_MAX_NAME, "%.*s", (int)(len - PLUGINSD_FILE_SUFFIX_LEN), file->d_name);
+			snprintfz(pluginname, CONFIG_MAX_NAME, "%.*s", (int)(len - PLUGINSD_FILE_SUFFIX_LEN), file->d_name);
 			int enabled = config_get_boolean("plugins", pluginname, automatic_run);
 
 			if(unlikely(!enabled)) {
@@ -493,17 +493,17 @@ void *pluginsd_main(void *ptr)
 				cd = calloc(sizeof(struct plugind), 1);
 				if(unlikely(!cd)) fatal("Cannot allocate memory for plugin.");
 
-				snprintf(cd->id, CONFIG_MAX_NAME, "plugin:%s", pluginname);
+				snprintfz(cd->id, CONFIG_MAX_NAME, "plugin:%s", pluginname);
 
-				strncpy(cd->filename, file->d_name, FILENAME_MAX);
-				snprintf(cd->fullfilename, FILENAME_MAX, "%s/%s", dir_name, cd->filename);
+				strncpyz(cd->filename, file->d_name, FILENAME_MAX);
+				snprintfz(cd->fullfilename, FILENAME_MAX, "%s/%s", dir_name, cd->filename);
 
 				cd->enabled = enabled;
 				cd->update_every = (int) config_get_number(cd->id, "update every", rrd_update_every);
 				cd->started_t = time(NULL);
 
 				char *def = "";
-				snprintf(cd->cmd, PLUGINSD_CMD_MAX, "exec %s %d %s", cd->fullfilename, cd->update_every, config_get(cd->id, "command options", def));
+				snprintfz(cd->cmd, PLUGINSD_CMD_MAX, "exec %s %d %s", cd->fullfilename, cd->update_every, config_get(cd->id, "command options", def));
 
 				// link it
 				if(likely(pluginsd_root)) cd->next = pluginsd_root;

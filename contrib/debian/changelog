@@ -1,5 +1,3 @@
-netdata (1.0.0) UNRELEASED; urgency=medium
-
-  * Initial release.
-
- -- Matthew Newton <mcn4@leicester.ac.uk>  Fri, 01 Apr 2016 17:24:11 +0100
+netdata (1.2.0) UNRELEASED; urgency=medium
+  * Latest release
+ -- Netdata Team <>  Mon, 16 May 2016 22:12:32 +0200

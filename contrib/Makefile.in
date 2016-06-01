@@ -158,6 +158,8 @@ OPTIONAL_MATH_CLFAGS = @OPTIONAL_MATH_CLFAGS@
 OPTIONAL_MATH_LIBS = @OPTIONAL_MATH_LIBS@
 OPTIONAL_NFACCT_CLFAGS = @OPTIONAL_NFACCT_CLFAGS@
 OPTIONAL_NFACCT_LIBS = @OPTIONAL_NFACCT_LIBS@
+OPTIONAL_UUID_CLFAGS = @OPTIONAL_UUID_CLFAGS@
+OPTIONAL_UUID_LIBS = @OPTIONAL_UUID_LIBS@
 OPTIONAL_ZLIB_CLFAGS = @OPTIONAL_ZLIB_CLFAGS@
 OPTIONAL_ZLIB_LIBS = @OPTIONAL_ZLIB_LIBS@
 PACKAGE = @PACKAGE@
@@ -179,6 +181,8 @@ PTHREAD_LIBS = @PTHREAD_LIBS@
 SET_MAKE = @SET_MAKE@
 SHELL = @SHELL@
 STRIP = @STRIP@
+UUID_CFLAGS = @UUID_CFLAGS@
+UUID_LIBS = @UUID_LIBS@
 VERSION = @VERSION@
 ZLIB_CFLAGS = @ZLIB_CFLAGS@
 ZLIB_LIBS = @ZLIB_LIBS@
@@ -239,6 +243,7 @@ target_alias = @target_alias@
 top_build_prefix = @top_build_prefix@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
+varlibdir = @varlibdir@
 webdir = @webdir@
 MAINTAINERCLEANFILES = $(srcdir)/Makefile.in
 dist_noinst_DATA = \
@@ -447,6 +452,12 @@ uninstall-am:
 	maintainer-clean-generic mostlyclean mostlyclean-generic pdf \
 	pdf-am ps ps-am tags-am uninstall uninstall-am
 
+
+debian/changelog:
+	echo "netdata ($(PACKAGE_VERSION)) UNRELEASED; urgency=medium" | \
+		tr '_' '~' > $@
+	echo "  * Latest release" >> $@
+	echo " -- Netdata Team <>  `date -R`" >> $@
 
 # Tell versions [3.59,3.63) of GNU make to not export all variables.
 # Otherwise a system limit (for SysV at least) may be exceeded.

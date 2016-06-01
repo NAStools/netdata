@@ -10,6 +10,7 @@
 #include <string.h>
 #include <sys/types.h>
 #include <pwd.h>
+#include <grp.h>
 #include <pthread.h>
 #include <sys/wait.h>
 #include <sys/stat.h>
@@ -29,49 +30,8 @@ int pidfd = -1;
 
 void sig_handler(int signo)
 {
-	switch(signo) {
-		case SIGILL:
-		case SIGABRT:
-		case SIGFPE:
-		case SIGSEGV:
-		case SIGBUS:
-		case SIGSYS:
-		case SIGTRAP:
-		case SIGXCPU:
-		case SIGXFSZ:
-			infoerr("Death signaled exit (signal %d).", signo);
-			signal(signo, SIG_DFL);
-			break;
-
-		case SIGKILL:
-		case SIGTERM:
-		case SIGQUIT:
-		case SIGINT:
-		case SIGHUP:
-		case SIGUSR1:
-		case SIGUSR2:
-			infoerr("Signaled exit (signal %d).", signo);
-			signal(SIGPIPE, SIG_IGN);
-			signal(SIGTERM, SIG_IGN);
-			signal(SIGQUIT, SIG_IGN);
-			signal(SIGHUP,  SIG_IGN);
-			signal(SIGINT,  SIG_IGN);
-			signal(SIGCHLD, SIG_IGN);
-			netdata_cleanup_and_exit(1);
-			break;
-
-		case SIGPIPE:
-			infoerr("Signaled PIPE (signal %d).", signo);
-			// this is received when web clients send a reset
-			// no need to log it.
-			// infoerr("Ignoring signal %d.", signo);
-			break;
-
-		default:
-			info("Signal %d received. Falling back to default action for it.", signo);
-			signal(signo, SIG_DFL);
-			break;
-	}
+	if(signo)
+		netdata_exit = 1;
 }
 
 int become_user(const char *username)
@@ -84,6 +44,21 @@ int become_user(const char *username)
 
 	uid_t uid = pw->pw_uid;
 	gid_t gid = pw->pw_gid;
+
+	int ngroups =  sysconf(_SC_NGROUPS_MAX);
+	gid_t *supplementary_groups = NULL;
+	if(ngroups) {
+		supplementary_groups = malloc(sizeof(gid_t) * ngroups);
+		if(supplementary_groups) {
+			if(getgrouplist(username, gid, supplementary_groups, &ngroups) == -1) {
+				error("Cannot get supplementary groups of user '%s'.", username);
+				free(supplementary_groups);
+				supplementary_groups = NULL;
+				ngroups = 0;
+			}
+		}
+		else fatal("Cannot allocate memory for %d supplementary groups", ngroups);
+	}
 
 	if(pidfile[0] && getuid() != uid) {
 		// we are dropping privileges
@@ -100,6 +75,15 @@ int become_user(const char *username)
 		// not need to keep it open
 		close(pidfd);
 		pidfd = -1;
+	}
+
+	if(supplementary_groups && ngroups) {
+		if(setgroups(ngroups, supplementary_groups) == -1)
+			error("Cannot set supplementary groups for user '%s'", username);
+
+		free(supplementary_groups);
+		supplementary_groups = NULL;
+		ngroups = 0;
 	}
 
 	if(setresgid(gid, gid, gid) != 0) {
@@ -183,6 +167,8 @@ int become_daemon(int dont_fork, int close_all_files, const char *user, const ch
 				*access_fd = -1;
 				return -1;
 			}
+			if(setvbuf(*access_fp, NULL, _IOLBF, 0) != 0)
+				error("Cannot set line buffering on access.log");
 		}
 	}
 
@@ -221,10 +207,6 @@ int become_daemon(int dont_fork, int close_all_files, const char *user, const ch
 			exit(2);
 		}
 	}
-
-	signal(SIGCHLD,  SIG_IGN);
-	signal(SIGHUP,   SIG_IGN);
-	signal(SIGWINCH, SIG_IGN);
 
 	// fork() again
 	if(!dont_fork) {
@@ -276,6 +258,10 @@ int become_daemon(int dont_fork, int close_all_files, const char *user, const ch
 			dup2(output_fd, STDOUT_FILENO);
 			close(output_fd);
 		}
+
+		if(setvbuf(stdout, NULL, _IOLBF, 0) != 0)
+			error("Cannot set line buffering on debug.log");
+
 		output_fd = -1;
 	}
 	else dup2(dev_null, STDOUT_FILENO);
@@ -285,6 +271,10 @@ int become_daemon(int dont_fork, int close_all_files, const char *user, const ch
 			dup2(error_fd, STDERR_FILENO);
 			close(error_fd);
 		}
+
+		if(setvbuf(stderr, NULL, _IOLBF, 0) != 0)
+			error("Cannot set line buffering on error.log");
+
 		error_fd = -1;
 	}
 	else dup2(dev_null, STDERR_FILENO);
