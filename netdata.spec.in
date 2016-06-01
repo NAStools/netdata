@@ -96,10 +96,15 @@ rm -rf $RPM_BUILD_ROOT
 %dir %{_datadir}/%{name}
 
 # override defattr for web files
-%defattr(755,root,netdata,644)
+%defattr(644,root,netdata,755)
 %{_datadir}/%{name}/web
 
 %changelog
+* Mon May 16 2016 Costa Tsaousis <costa@tsaousis.gr> - 1.2.0-1
+- netdata is now 30% faster.
+- netdata now has a registry (my-netdata menu on the dashboard).
+- netdata now monitors Linux containers.
+- Several more improvements, new features and bugfixes.
 * Wed Apr 20 2016 Costa Tsaousis <costa@tsaousis.gr> - 1.1.0-1
 - Several new features (IPv6, SYNPROXY, Users, Users Groups).
 - A lot of bug fixes and optimizations.

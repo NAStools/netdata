@@ -10,11 +10,11 @@
 
 Summary:	Real-time performance monitoring, done right
 Name:		netdata
-Version:	1.1.0
+Version:	1.2.0
 Release:	%{?release_suffix}%{?dist}
 License:	GPL v3+
 Group:		Applications/System
-Source0:	http://firehol.org/download/netdata/releases/v1.1.0/%{name}-1.1.0.tar.xz
+Source0:	http://firehol.org/download/netdata/releases/v1.2.0/%{name}-1.2.0.tar.xz
 URL:		http://netdata.firehol.org/
 BuildRequires:	pkgconfig
 BuildRequires:	xz
@@ -42,7 +42,7 @@ so that you can get insights of what is happening now and what just
 happened, on your systems and applications.
 
 %prep
-%setup -q -n %{name}-1.1.0
+%setup -q -n %{name}-1.2.0
 
 %build
 %configure \
@@ -96,10 +96,15 @@ rm -rf $RPM_BUILD_ROOT
 %dir %{_datadir}/%{name}
 
 # override defattr for web files
-%defattr(755,root,netdata,644)
+%defattr(644,root,netdata,755)
 %{_datadir}/%{name}/web
 
 %changelog
+* Mon May 16 2016 Costa Tsaousis <costa@tsaousis.gr> - 1.2.0-1
+- netdata is now 30% faster.
+- netdata now has a registry (my-netdata menu on the dashboard).
+- netdata now monitors Linux containers.
+- Several more improvements, new features and bugfixes.
 * Wed Apr 20 2016 Costa Tsaousis <costa@tsaousis.gr> - 1.1.0-1
 - Several new features (IPv6, SYNPROXY, Users, Users Groups).
 - A lot of bug fixes and optimizations.

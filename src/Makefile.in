@@ -113,15 +113,17 @@ am_netdata_OBJECTS = appconfig.$(OBJEXT) avl.$(OBJEXT) \
 	proc_net_rpc_nfsd.$(OBJEXT) proc_net_snmp.$(OBJEXT) \
 	proc_net_snmp6.$(OBJEXT) proc_net_stat_conntrack.$(OBJEXT) \
 	proc_net_stat_synproxy.$(OBJEXT) proc_stat.$(OBJEXT) \
+	proc_self_mountinfo.$(OBJEXT) \
 	proc_sys_kernel_random_entropy_avail.$(OBJEXT) \
 	proc_vmstat.$(OBJEXT) sys_kernel_mm_ksm.$(OBJEXT) \
-	procfile.$(OBJEXT) rrd.$(OBJEXT) rrd2json.$(OBJEXT) \
-	storage_number.$(OBJEXT) unit_test.$(OBJEXT) url.$(OBJEXT) \
-	web_buffer.$(OBJEXT) web_client.$(OBJEXT) web_server.$(OBJEXT)
+	sys_fs_cgroup.$(OBJEXT) procfile.$(OBJEXT) registry.$(OBJEXT) \
+	rrd.$(OBJEXT) rrd2json.$(OBJEXT) storage_number.$(OBJEXT) \
+	unit_test.$(OBJEXT) url.$(OBJEXT) web_buffer.$(OBJEXT) \
+	web_client.$(OBJEXT) web_server.$(OBJEXT)
 netdata_OBJECTS = $(am_netdata_OBJECTS)
 am__DEPENDENCIES_1 =
 netdata_DEPENDENCIES = $(am__DEPENDENCIES_1) $(am__DEPENDENCIES_1) \
-	$(am__DEPENDENCIES_1)
+	$(am__DEPENDENCIES_1) $(am__DEPENDENCIES_1)
 AM_V_P = $(am__v_P_@AM_V@)
 am__v_P_ = $(am__v_P_@AM_DEFAULT_V@)
 am__v_P_0 = false
@@ -249,6 +251,8 @@ OPTIONAL_MATH_CLFAGS = @OPTIONAL_MATH_CLFAGS@
 OPTIONAL_MATH_LIBS = @OPTIONAL_MATH_LIBS@
 OPTIONAL_NFACCT_CLFAGS = @OPTIONAL_NFACCT_CLFAGS@
 OPTIONAL_NFACCT_LIBS = @OPTIONAL_NFACCT_LIBS@
+OPTIONAL_UUID_CLFAGS = @OPTIONAL_UUID_CLFAGS@
+OPTIONAL_UUID_LIBS = @OPTIONAL_UUID_LIBS@
 OPTIONAL_ZLIB_CLFAGS = @OPTIONAL_ZLIB_CLFAGS@
 OPTIONAL_ZLIB_LIBS = @OPTIONAL_ZLIB_LIBS@
 PACKAGE = @PACKAGE@
@@ -270,6 +274,8 @@ PTHREAD_LIBS = @PTHREAD_LIBS@
 SET_MAKE = @SET_MAKE@
 SHELL = @SHELL@
 STRIP = @STRIP@
+UUID_CFLAGS = @UUID_CFLAGS@
+UUID_LIBS = @UUID_LIBS@
 VERSION = @VERSION@
 ZLIB_CFLAGS = @ZLIB_CFLAGS@
 ZLIB_LIBS = @ZLIB_LIBS@
@@ -330,6 +336,7 @@ target_alias = @target_alias@
 top_build_prefix = @top_build_prefix@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
+varlibdir = @varlibdir@
 webdir = @webdir@
 
 #
@@ -337,6 +344,7 @@ webdir = @webdir@
 #
 MAINTAINERCLEANFILES = $(srcdir)/Makefile.in
 AM_CPPFLAGS = \
+	-DVARLIB_DIR="\"$(varlibdir)\"" \
 	-DCACHE_DIR="\"$(cachedir)\"" \
 	-DCONFIG_DIR="\"$(configdir)\"" \
 	-DLOG_DIR="\"$(logdir)\"" \
@@ -349,6 +357,7 @@ AM_CFLAGS = \
 	$(OPTIONAL_MATH_CFLAGS) \
 	$(OPTIONAL_NFACCT_CLFAGS) \
 	$(OPTIONAL_ZLIB_CFLAGS) \
+	$(OPTIONAL_UUID_CFLAGS) \
 	$(NULL)
 
 dist_cache_DATA = .keep
@@ -383,10 +392,13 @@ netdata_SOURCES = \
 	proc_net_stat_conntrack.c \
 	proc_net_stat_synproxy.c \
 	proc_stat.c \
+	proc_self_mountinfo.c proc_self_mountinfo.h \
 	proc_sys_kernel_random_entropy_avail.c \
 	proc_vmstat.c \
 	sys_kernel_mm_ksm.c \
+	sys_fs_cgroup.c \
 	procfile.c procfile.h \
+	registry.c registry.h \
 	rrd.c rrd.h \
 	rrd2json.c rrd2json.h \
 	storage_number.c storage_number.h \
@@ -401,6 +413,7 @@ netdata_LDADD = \
 	$(OPTIONAL_MATH_LIBS) \
 	$(OPTIONAL_NFACCT_LIBS) \
 	$(OPTIONAL_ZLIB_LIBS) \
+	$(OPTIONAL_UUID_LIBS) \
 	$(NULL)
 
 apps_plugin_SOURCES = \
@@ -572,14 +585,17 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/proc_net_snmp6.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/proc_net_stat_conntrack.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/proc_net_stat_synproxy.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/proc_self_mountinfo.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/proc_softirqs.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/proc_stat.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/proc_sys_kernel_random_entropy_avail.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/proc_vmstat.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/procfile.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/registry.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/rrd.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/rrd2json.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/storage_number.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/sys_fs_cgroup.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/sys_kernel_mm_ksm.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/unit_test.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/url.Po@am__quote@
@@ -858,13 +874,17 @@ uninstall-am: uninstall-dist_cacheDATA uninstall-dist_logDATA \
 install-data-hook:
 	if [ `id -u` == 0 ]; then \
 		chown root '$(DESTDIR)$(pluginsdir)/apps.plugin' && \
-			chmod 4755 '$(DESTDIR)$(pluginsdir)/apps.plugin'; \
+		chmod 0755 '$(DESTDIR)$(pluginsdir)/apps.plugin' && \
+		( setcap cap_dac_read_search,cap_sys_ptrace+ep '$(DESTDIR)$(pluginsdir)/apps.plugin' || \
+		  chmod 4755 '$(DESTDIR)$(pluginsdir)/apps.plugin' ); \
 	else \
 		echo; \
 		echo "ATTENTION"; \
 		echo; \
-		echo "setuid bit of $(pluginsdir)/apps.plugin must be set, please execute as root:"; \
-		echo "chown root '$(pluginsdir)/apps.plugin' && chmod 4755 '$(pluginsdir)/apps.plugin'"; \
+		echo "$(pluginsdir)/apps.plugin requires escalated capabilities:"; \
+		echo "sudo chown root '$(DESTDIR)$(pluginsdir)/apps.plugin'"; \
+		echo "sudo chmod 0755 '$(DESTDIR)$(pluginsdir)/apps.plugin'"; \
+		echo "sudo setcap cap_dac_read_search,cap_sys_ptrace+ep '$(DESTDIR)$(pluginsdir)/apps.plugin'"; \
 		echo; \
 	fi
 

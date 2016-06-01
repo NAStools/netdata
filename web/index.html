@@ -191,6 +191,42 @@
 		font-weight: 500;
 	}
 
+	.dropdown-menu {
+		min-width: 200px;
+	}
+	.dropdown-menu.columns-2 {
+		margin: 0;
+		padding: 0;
+		width: 400px;
+	}
+	.dropdown-menu li a {
+		padding: 5px 15px;
+		font-weight: 300;
+	}
+	.dropdown-menu.multi-column {
+		overflow-x: hidden;
+	}
+	.multi-column-dropdown {
+		list-style: none;
+		padding: 0;
+	}
+	.multi-column-dropdown li a {
+		display: block;
+		clear: both;
+		line-height: 1.428571429;
+		white-space: normal;
+	}
+	.multi-column-dropdown li a:hover {
+		text-decoration: none;
+		color: #f5f5f5;
+		background-color: #262626;
+	}
+	.scrollable-menu {
+		height: auto;
+		max-height: 80vh;
+		overflow-x: hidden;
+	}
+
 	/* Back to top (hidden on mobile) */
 	.back-to-top,
 	.dashboard-theme-toggle {
@@ -320,6 +356,7 @@
 			else
 				return ret;
 		}
+
 		var netdataTheme = getTheme('slate');
 
 		function setTheme(theme) {
@@ -327,15 +364,94 @@
 
 			return saveLocalStorage('netdataTheme', theme);
 		}
+
+		var netdataRegistryCallback = function(urls_array) {
+			var el = '';
+			var a1 = '';
+			var found = 0;
+
+			if(urls_array) {
+				function name_comparator_desc(a, b) {
+					if (a.name > b.name) return -1;
+					if (a.name < b.name) return 1;
+					return 0;
+				}
+
+				var urls = urls_array.sort(name_comparator_desc);
+				var len = urls.length;
+				while(len--) {
+					var u = urls[len];
+
+					var status = "enabled";
+					found++;
+
+					if(u.guid === NETDATA.registry.machine_guid)
+						status = "disabled"
+
+					el += '<li id="registry_server_' + u.guid + '" class="' + status + '"><a href="' + u.url + '">' + u.name + '</a></li>';
+					a1 += '<li id="registry_action_' + u.guid + '"><a href="#" onclick="deleteRegistryModalHandler(\'' + u.guid + '\',\'' + u.name + '\',\'' + u.url + '\'); return false;"><i class="fa fa-trash-o" aria-hidden="true" style="color: #999;"></i></a></li>';
+				}
+			}
+
+			if(!found) {
+				if(urls)
+					el += '<li><a href="https://github.com/firehol/netdata/wiki/mynetdata-menu-item" style="color: #666;" target="_blank">your netdata server list is empty...</a></li>';
+				else
+					el += '<li><a href="https://github.com/firehol/netdata/wiki/mynetdata-menu-item" style="color: #666;" target="_blank">failed to contact the registry...</a></li>';
+
+				a1 += '<li><a href="#">&nbsp;</a></li>';
+
+				el += '<li role="separator" class="divider"></li>' +
+						'<li><a href="//london.netdata.rocks/default.html">EU - London (DigitalOcean.com)</a></li>' +
+						'<li><a href="//atlanta.netdata.rocks/default.html">US - Atlanta (CDN77.com)</a></li>' +
+						'<li><a href="//athens.netdata.rocks/default.html">EU - Athens</a></li>';
+				a1 += '<li role="separator" class="divider"></li>' +
+						'<li><a href="#">&nbsp;</a></li>' +
+						'<li><a href="#">&nbsp;</a></li>'+
+						'<li><a href="#">&nbsp;</a></li>';
+			}
+
+			el += '<li role="separator" class="divider"></li>';
+			a1 += '<li role="separator" class="divider"></li>';
+
+			el += '<li><a href="https://github.com/firehol/netdata/wiki/mynetdata-menu-item" style="color: #999;" target="_blank">What is this?</a></li>';
+			a1 += '<li><a href="#" style="color: #999;" onclick="switchRegistryModalHandler(); return false;"><i class="fa fa-cog" aria-hidden="true" style="color: #999;"></i></a></li>'
+
+			document.getElementById('mynetdata_servers').innerHTML = el;
+			document.getElementById('mynetdata_servers2').innerHTML = el;
+			document.getElementById('mynetdata_actions1').innerHTML = a1;
+		};
+
 	</script>
 
 	<!-- load the dashboard manager - it will do the rest -->
-	<script type="text/javascript" src="dashboard.js?v32"></script>
+	<script type="text/javascript" src="dashboard.js?v37"></script>
 </head>
 
 <body data-spy="scroll" data-target="#sidebar">
 	<nav class="navbar navbar-default navbar-fixed-top" role="banner">
 		<div class="container">
+			<nav id="mynetdata_nav" class="collapse navbar-collapse navbar-left hidden-sm hidden-xs" role="navigation" style="padding-right: 20px;">
+				<ul class="nav navbar-nav">
+					<li class="dropdown">
+						<a href="#" class="dropdown-toggle" data-toggle="dropdown" id="current_view">my-netdata <strong class="caret"></strong></a>
+						<ul class="dropdown-menu scrollable-menu inpagemenu multi-column columns-2" role="menu">
+							<div class="row">
+								<div class="col-sm-6" style="width: 85%; padding-right: 0;">
+									<ul id="mynetdata_servers" class="multi-column-dropdown">
+										<li><a href="#" onclck="return false;" style="color: #999;">loading...</a></li>
+									</ul>
+								</div>
+								<div class="col-sm-3 hidden-xs" style="width: 15%; padding-left: 0;">
+									<ul id="mynetdata_actions1" class="multi-column-dropdown">
+									<li style="color: #999;">&nbsp;</li>
+									</ul>
+								</div>
+							</div>
+						</ul>
+					</li>
+				</ul>
+			</nav>
 			<div class="navbar-header">
 				<button class="navbar-toggle" type="button" data-toggle="collapse" data-target=".navbar-collapse">
 					<span class="sr-only">Toggle navigation</span>
@@ -347,15 +463,27 @@
 			</div>
 			<nav class="collapse navbar-collapse navbar-right" role="navigation">
 				<ul class="nav navbar-nav">
-					<li><a href="#" class="btn" data-toggle="modal" data-target="#optionsModal"><i class="fa fa-cog"></i> settings</a></li>
-					<li><a href="https://github.com/firehol/netdata/wiki" class="btn" target="_blank"><i class="fa fa-github"></i> community</a></li>
-					<li id="updateButton"><a href="#" class="btn" data-toggle="modal" data-target="#updateModal"><i class="fa fa-cloud-download"></i> update</a></li>
-<!--					<li><a href="old/" class="btn" target="_blank"><i class="fa fa-step-backward"></i> old dashboard</a></li> -->
-					<li><a href="#" class="btn" data-toggle="modal" data-target="#helpModal"><i class="fa fa-question-circle"></i> help</a></li>
-<!--					<li><a href="#sec">Visualize</a></li>
-					<li><a href="#sec">Prototype</a></li>
--->				</ul>
+					<li class="hidden-sm"><a href="#" class="btn" data-toggle="modal" data-target="#optionsModal"><i class="fa fa-cog"></i> settings</a></li>
+					<li class="hidden-sm"><a href="https://github.com/firehol/netdata/wiki" class="btn" target="_blank"><i class="fa fa-github"></i> community</a></li>
+					<li class="hidden-sm" id="updateButton"><a href="#" class="btn" data-toggle="modal" data-target="#updateModal"><i class="fa fa-cloud-download"></i> update</a></li>
+					<li class="hidden-sm"><a href="#" class="btn" data-toggle="modal" data-target="#helpModal"><i class="fa fa-question-circle"></i> help</a></li>
+					<li class="dropdown hidden-md hidden-lg hidden-xs">
+						<a href="#" class="dropdown-toggle" data-toggle="dropdown" id="current_view">Menu <strong class="caret"></strong></a>
+						<ul class="dropdown-menu scrollable-menu inpagemenu" role="menu">
+							<li><a href="#" class="btn" data-toggle="modal" data-target="#optionsModal"><i class="fa fa-cog"></i> settings</a></li>
+							<li><a href="https://github.com/firehol/netdata/wiki" class="btn" target="_blank"><i class="fa fa-github"></i> community</a></li>
+							<li><a href="#" class="btn" data-toggle="modal" data-target="#helpModal"><i class="fa fa-question-circle"></i> help</a></li>
+						</ul>
+					</li>
+					<li class="dropdown hidden-sm hidden-md hidden-lg">
+						<a href="#" class="dropdown-toggle" data-toggle="dropdown" id="current_view">my-netdata <strong class="caret"></strong></a>
+						<ul id="mynetdata_servers2" class="dropdown-menu scrollable-menu inpagemenu" role="menu">
+							<li><a href="#" onclck="return false;" style="color: #999;">loading...</a></li>
+						</ul>
+					</li>
+				</ul>
 			</nav>
+	</nav>
 		</div>
 	</nav>
 
@@ -455,9 +583,6 @@
 
 						<i class="fa fa-circle"></i> <a href="http://D3js.org/" target="_blank">D3</a>,
 						<i class="fa fa-copyright"></i> Copyright 2015, Mike Bostock, <a href="http://opensource.org/licenses/BSD-3-Clause" target="_blank">BSD License</a>
-
-						<i class="fa fa-circle"></i> <a href="https://github.com/broofa/node-int64" target="_blank">node-int64</a>,
-						<i class="fa fa-copyright"></i> Copyright 2014, Robert Kieffer, <a href="https://github.com/broofa/node-int64/blob/master/LICENSE" target="_blank">MIT License</a>
 
 					</small>
 				</div>
@@ -775,16 +900,86 @@
 		</div>
 	</div>
 
-<script>
+	<div class="modal fade" id="deleteRegistryModal" tabindex="-1" role="dialog" aria-labelledby="deleteRegistryModalLabel">
+		<div class="modal-dialog" role="document">
+			<div class="modal-content">
+				<div class="modal-header">
+					<button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+					<h4 class="modal-title" id="deleteRegistryModalLabel">Delete <span id="deleteRegistryServerName"></span>?</h4>
+				</div>
+				<div class="modal-body">
+					You are about to delete, from your personal list of netdata servers, the following server:
+					<p style="text-align: center; padding-top: 10px; padding-bottom: 10px; line-height: 2;">
+					<b><span id="deleteRegistryServerName2"></span></b>
+					<br/>
+					<b><span id="deleteRegistryServerURL"></span></b>
+					</p>
+					Are you sure you want to do this?
+					<br/>
+					<div style="padding: 10px;"></div>
+					<small>Keep in mind, this server will be added back if and when you visit it again.</small>
+					<br/>
+					<div id="deleteRegistryResponse" style="display: block; width: 100%; text-align: center; padding-top: 20px;"></div>
+				</div>
+				<div class="modal-footer">
+					<button type="button" class="btn btn-success" data-dismiss="modal">keep it</button>
+					<a href="#" onclick="notifyForDeleteRegistry(true); return false;" type="button" class="btn btn-danger">delete it</a>
+				</div>
+			</div>
+		</div>
+	</div>
 
+	<div class="modal fade" id="switchRegistryModal" tabindex="-1" role="dialog" aria-labelledby="switchRegistryModalLabel">
+		<div class="modal-dialog" role="document">
+			<div class="modal-content">
+				<div class="modal-header">
+					<button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+					<h4 class="modal-title" id="switchRegistryModalLabel">Switch Netdata Registry Identity</h4>
+				</div>
+				<div class="modal-body">
+					You can copy and paste the following ID to all your browsers (e.g. work and home).
+					<br/>
+					All the browsers with the same ID will identify <b>you</b>, so please don't share this with others.
+					<p style="text-align: center; padding-top: 10px; padding-bottom: 10px; line-height: 2;">
+					<form action="#">
+					<input type="text" class="form-control" id="switchRegistryPersonGUID" placeholder="your personal ID" maxlength="36" autocomplete="off" style="text-align: center; font-size: 1.4em;">
+					</form>
+					</p>
+					Either copy this ID and paste it to another browser, or paste here the ID you have taken from another browser.
+					<p style="padding-top: 10px;"><small>
+						Keep in mind that:
+						<ul>
+							<li>when you switch ID, your previous ID will be lost forever - this is irreversible.</li>
+							<li>both IDs (your old and the new) must list this netdata at their personal lists.</li>
+							<li>both IDs have to be known by the registry: <b><span id="switchRegistryURL"></span></b>.</li>
+							<li>to get a new ID, just clear your browser cookies.</li>
+						</ul>
+					</small></p>
+					<div id="switchRegistryResponse" style="display: block; width: 100%; text-align: center; padding-top: 20px;"></div>
+				</div>
+				<div class="modal-footer">
+					<button type="button" class="btn btn-success" data-dismiss="modal">cancel</button>
+					<a href="#" onclick="notifyForSwitchRegistry(true); return false;" type="button" class="btn btn-danger">impersonate</a>
+				</div>
+			</div>
+		</div>
+	</div>
+
+<script>
 var this_is_demo = null;
 function isdemo() {
 	if(this_is_demo !== null) return this_is_demo;
 	this_is_demo = false;
 
 	try {
-		if(typeof document.location.hostname === 'string')
-			this_is_demo = document.location.hostname.endsWith('.firehol.org');
+		if(typeof document.location.hostname === 'string') {
+			if(document.location.hostname.endsWith('.my-netdata.io') ||
+					document.location.hostname.endsWith('.mynetdata.io') ||
+					document.location.hostname.endsWith('.netdata.rocks') ||
+					document.location.hostname.endsWith('.firehol.org') ||
+					document.location.hostname.endsWith('.netdata.online'))
+					this_is_demo = true;
+		}
 	}
 	catch(error) {
 		;
@@ -795,6 +990,56 @@ function isdemo() {
 
 if(isdemo()) {
 	document.getElementById('masthead').style.display = 'block';
+}
+
+function switchRegistryModalHandler() {
+	document.getElementById('switchRegistryPersonGUID').value = NETDATA.registry.person_guid;
+	document.getElementById('switchRegistryURL').innerHTML = NETDATA.registry.server;
+	document.getElementById('switchRegistryResponse').innerHTML = '';
+	$('#switchRegistryModal').modal('show');
+}
+
+function notifyForSwitchRegistry() {
+	var n = document.getElementById('switchRegistryPersonGUID').value;
+
+	if(n !== '' && n.length === 36) {
+		NETDATA.registry.switch(n, function(result) {
+			if(result !== null) {
+				$('#switchRegistryModal').modal('hide');
+				NETDATA.registry.init();
+			}
+			else {
+				document.getElementById('switchRegistryResponse').innerHTML = "<b>Sorry! The registry rejected your request.</b>";
+			}
+		});
+	}
+	else
+		document.getElementById('switchRegistryResponse').innerHTML = "<b>The ID you have entered is not a GUID.</b>";
+}
+
+var deleteRegistryUrl = null;
+function deleteRegistryModalHandler(guid, name, url) {
+	deleteRegistryUrl = url;
+	document.getElementById('deleteRegistryServerName').innerHTML = name;
+	document.getElementById('deleteRegistryServerName2').innerHTML = name;
+	document.getElementById('deleteRegistryServerURL').innerHTML = url;
+	document.getElementById('deleteRegistryResponse').innerHTML = '';
+	$('#deleteRegistryModal').modal('show');
+}
+
+function notifyForDeleteRegistry() {
+	if(deleteRegistryUrl) {
+		NETDATA.registry.delete(deleteRegistryUrl, function(result) {
+			if(result !== null) {
+				deleteRegistryUrl = null;
+				$('#deleteRegistryModal').modal('hide');
+				NETDATA.registry.init();
+			}
+			else {
+				document.getElementById('deleteRegistryResponse').innerHTML = "<b>Sorry! this command was rejected by the registry server.</b>";
+			}
+		});
+	}
 }
 
 var options = {
@@ -985,6 +1230,21 @@ var menuData = {
 
 	'example': {
 		title: 'Example Charts',
+		info: undefined
+	},
+
+	'cgroup': {
+		title: 'Container',
+		info: undefined
+	},
+
+	'mysql': {
+		title: 'MySQL',
+		info: undefined
+	},
+
+	'named': {
+		title: 'named',
 		info: undefined
 	},
 };
@@ -1297,8 +1557,13 @@ function anyAttribute(obj, attr, key, def) {
 	return def;
 }
 
-function menuTitle(menu) {
-	return anyAttribute(menuData, 'title', menu, menu);
+function menuTitle(chart) {
+	if(typeof chart.menu_pattern !== 'undefined') {
+		return anyAttribute(menuData, 'title', chart.menu_pattern, chart.menu_pattern).toString()
+				+ ': ' + chart.type.slice(-(chart.type.length - chart.menu_pattern.length - 1)).toString();
+	}
+
+	return anyAttribute(menuData, 'title', chart.menu, chart.menu);
 }
 
 function menuInfo(menu) {
@@ -1354,6 +1619,13 @@ function enrichChartData(chart) {
 			chart.menu = tmp;
 			break;
 
+		case 'mysql':
+		case 'named':
+		case 'cgroup':
+			chart.menu = chart.type;
+			chart.menu_pattern = tmp;
+			break;
+
 		case 'tc':
 			chart.menu = tmp;
 
@@ -1390,11 +1662,11 @@ function enrichChartData(chart) {
 
 function name2id(s) {
 	return s
-		.replace(' ', '_')
-		.replace('(', '_')
-		.replace(')', '_')
-		.replace('.', '_')
-		.replace('/', '_');
+		.replace(/ /g, '_')
+		.replace(/\(/g, '_')
+		.replace(/\)/g, '_')
+		.replace(/\./g, '_')
+		.replace(/\//g, '_');
 }
 
 function headMain(charts, duration) {
@@ -1549,8 +1821,9 @@ function renderPage(menus, data) {
 
 		// generate an entry at the main menu
 
-		sidebar += '<li class=""><a href="#' + menu + '">' + menus[menu].title + '</a><ul class="nav">';
-		html += '<div role="section"><div role="sectionhead"><h1 id="' + menu + '" role="heading">' + menus[menu].title + '</h1></div><div id="' + menu + '" role="document">';
+		var menuid = name2id(menu);
+		sidebar += '<li class=""><a href="#' + menuid + '">' + menus[menu].title + '</a><ul class="nav">';
+		html += '<div role="section"><div role="sectionhead"><h1 id="' + menuid + '" role="heading">' + menus[menu].title + '</h1></div><div id="menu_' + menuid + '" role="document">';
 
 		if(menus[menu].info !== null)
 			html += menus[menu].info;
@@ -1558,7 +1831,7 @@ function renderPage(menus, data) {
 		// console.log(' >> ' + menu + ' (' + menus[menu].priority + '): ' + menus[menu].title);
 
 		var shtml = '';
-		var mhead = '<div style="width: 100%; text-align: center;">' + mainhead;
+		var mhead = '<div class="netdata-chart-row">' + mainhead;
 		mainhead = '';
 
 		// sort the submenus of this menu
@@ -1568,13 +1841,14 @@ function renderPage(menus, data) {
 			var submenu = sub[si++];
 
 			// generate an entry at the submenu
-			sidebar += '<li class><a href="#' + name2id(menu + '_' + submenu) + '">' + menus[menu].submenus[submenu].title + '</a></li>';
-			shtml += '<div class="netdata-group-container" id="submenu_' + name2id(menu + '_' + submenu) + '" style="display: inline-block; width: ' + pcent_width.toString() + '%"><h2 id="' + name2id(menu + '_' + submenu) + '" class="netdata-chart-alignment" role="heading">' + menus[menu].submenus[submenu].title + '</h2>';
+			var submenuid = name2id(menu + '_' + submenu);
+			sidebar += '<li class><a href="#' + submenuid + '">' + menus[menu].submenus[submenu].title + '</a></li>';
+			shtml += '<div class="netdata-group-container" id="submenu_' + submenuid + '" style="display: inline-block; width: ' + pcent_width.toString() + '%"><h2 id="' + submenuid + '" class="netdata-chart-alignment" role="heading">' + menus[menu].submenus[submenu].title + '</h2>';
 
 			if(menus[menu].submenus[submenu].info !== null)
 				shtml += '<div class="chart-message netdata-chart-alignment" role="document">' + menus[menu].submenus[submenu].info + '</div>';
 
-			var head = '<div style="width: 100%; text-align: center;">';
+			var head = '<div class="netdata-chart-row">';
 			var chtml = '';
 
 			// console.log('    \------- ' + submenu + ' (' + menus[menu].submenus[submenu].priority + '): ' + menus[menu].submenus[submenu].title);
@@ -1629,7 +1903,7 @@ function renderChartsAndMenu(data) {
 			menus[charts[c].menu] = {
 				priority: charts[c].priority,
 				submenus: {},
-				title: menuTitle(charts[c].menu),
+				title: menuTitle(charts[c]),
 				info: menuInfo(charts[c].menu),
 				height: menuHeight(charts[c].menu, options.chartsHeight)
 			};
@@ -1656,6 +1930,8 @@ function renderChartsAndMenu(data) {
 		menus[charts[c].menu].submenus[charts[c].submenu].charts.push(charts[c]);
 	}
 
+	// propagate the descriptive subname given to QoS
+	// to all the other submenus with the same name
 	for(var m in menus) {
 		for(var s in menus[m].submenus) {
 			// set the family using a name
@@ -1841,12 +2117,15 @@ function finalizePage() {
 	// the Dom elements are initially zero-sized
 	NETDATA.parseDom();
 
-	var before = 0, after = 0;
+	var before = 0, after = 0, nowelcome = 0;
 	after = getUrlParameter('force_after_ms');
 	before = getUrlParameter('force_before_ms');
+	nowelcome = (getUrlParameter('nowelcome') === true)?true:false;
 
-	if(before > 0 && after > 0)
+	if(before > 0 && after > 0) {
+		nowelcome = true;
 		NETDATA.globalPanAndZoom.setMaster(NETDATA.options.targets[0], after, before);
+	}
 
 	// let it run (update the charts)
 	NETDATA.unpause();
@@ -1939,21 +2218,38 @@ function finalizePage() {
 	// this has to be the last
 	// it reloads the page
 	$('#netdata_theme_control').change(function() {
-		if(setTheme($(this).prop('checked')?'slate':'default'))
+		if(setTheme($(this).prop('checked')?'slate':'white'))
 			location.reload();
 	});
-
-	if(isdemo()) {
-		setTimeout(function() {
-			$('#welcomeModal').modal();
-		}, 1000);
-	}
-	else
-		notifyForUpdate();
 
 	$('#updateModal').on('shown.bs.modal', function() {
 		notifyForUpdate(true);
 	});
+
+	$('#deleteRegistryModal').on('hidden.bs.modal', function() {
+		deleteRegistryGuid = null;
+	});
+
+	if(isdemo()) {
+		if(!nowelcome) {
+			setTimeout(function() {
+				$('#welcomeModal').modal();
+			}, 1000);
+		}
+
+		// google analytics when this is used for the home page of the demo sites
+		// this does not run on user's installations
+		setTimeout(function() {
+			(function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+			(i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+			m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+			})(window,document,'script','https://www.google-analytics.com/analytics.js','ga');
+
+			ga('create', 'UA-64295674-3', 'auto');
+			ga('send', 'pageview');
+		}, 2000);
+	}
+	else notifyForUpdate();
 }
 
 function resetDashboardOptions() {

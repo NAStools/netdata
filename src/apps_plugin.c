@@ -39,11 +39,13 @@
 #include "procfile.h"
 #include "../config.h"
 
+#ifdef NETDATA_INTERNAL_CHECKS
+#include <sys/prctl.h>
+#endif
+
 #define MAX_COMPARE_NAME 100
 #define MAX_NAME 100
 #define MAX_CMDLINE 1024
-
-unsigned long long Hertz = 1;
 
 long processors = 1;
 long pid_max = 32768;
@@ -221,7 +223,7 @@ long get_system_cpus(void) {
 	int processors = 0;
 
 	char filename[FILENAME_MAX + 1];
-	snprintf(filename, FILENAME_MAX, "%s/proc/stat", host_prefix);
+	snprintfz(filename, FILENAME_MAX, "%s/proc/stat", host_prefix);
 
 	ff = procfile_open(filename, NULL, PROCFILE_FLAG_DEFAULT);
 	if(!ff) return 1;
@@ -250,7 +252,7 @@ long get_system_pid_max(void) {
 	long mpid = 32768;
 
 	char filename[FILENAME_MAX + 1];
-	snprintf(filename, FILENAME_MAX, "%s/proc/sys/kernel/pid_max", host_prefix);
+	snprintfz(filename, FILENAME_MAX, "%s/proc/sys/kernel/pid_max", host_prefix);
 	ff = procfile_open(filename, NULL, PROCFILE_FLAG_DEFAULT);
 	if(!ff) return mpid;
 
@@ -266,28 +268,6 @@ long get_system_pid_max(void) {
 	procfile_close(ff);
 	return mpid;
 }
-
-unsigned long long get_system_hertz(void)
-{
-	unsigned long long myhz = 1;
-
-#ifdef _SC_CLK_TCK
-	if((myhz = (unsigned long long int) sysconf(_SC_CLK_TCK)) > 0) {
-		return myhz;
-	}
-#endif
-
-#ifdef HZ
-	myhz = HZ;    /* <asm/param.h> */
-#else /* HZ */
-	/* If 32-bit or big-endian (not Alpha or ia64), assume HZ is 100. */
-	hz = (sizeof(long)==sizeof(int) || htons(999)==999) ? 100UL : 1024UL;
-#endif /* HZ */
-
-	error("Unknown HZ value. Assuming %llu.", myhz);
-	return myhz;
-}
-
 
 // ----------------------------------------------------------------------------
 // target
@@ -397,20 +377,20 @@ struct target *get_users_target(uid_t uid)
 		return NULL;
 	}
 
-	snprintf(w->compare, MAX_COMPARE_NAME, "%d", uid);
+	snprintfz(w->compare, MAX_COMPARE_NAME, "%d", uid);
 	w->comparehash = simple_hash(w->compare);
 	w->comparelen = strlen(w->compare);
 
-	snprintf(w->id, MAX_NAME, "%d", uid);
+	snprintfz(w->id, MAX_NAME, "%d", uid);
 	w->idhash = simple_hash(w->id);
 
 	struct passwd *pw = getpwuid(uid);
 	if(!pw)
-		snprintf(w->name, MAX_NAME, "%d", uid);
+		snprintfz(w->name, MAX_NAME, "%d", uid);
 	else
-		snprintf(w->name, MAX_NAME, "%s", pw->pw_name);
+		snprintfz(w->name, MAX_NAME, "%s", pw->pw_name);
 
-	netdata_fix_id(w->name);
+	netdata_fix_chart_name(w->name);
 
 	w->uid = uid;
 
@@ -435,20 +415,20 @@ struct target *get_groups_target(gid_t gid)
 		return NULL;
 	}
 
-	snprintf(w->compare, MAX_COMPARE_NAME, "%d", gid);
+	snprintfz(w->compare, MAX_COMPARE_NAME, "%d", gid);
 	w->comparehash = simple_hash(w->compare);
 	w->comparelen = strlen(w->compare);
 
-	snprintf(w->id, MAX_NAME, "%d", gid);
+	snprintfz(w->id, MAX_NAME, "%d", gid);
 	w->idhash = simple_hash(w->id);
 
 	struct group *gr = getgrgid(gid);
 	if(!gr)
-		snprintf(w->name, MAX_NAME, "%d", gid);
+		snprintfz(w->name, MAX_NAME, "%d", gid);
 	else
-		snprintf(w->name, MAX_NAME, "%s", gr->gr_name);
+		snprintfz(w->name, MAX_NAME, "%s", gr->gr_name);
 
-	netdata_fix_id(w->name);
+	netdata_fix_chart_name(w->name);
 
 	w->gid = gid;
 
@@ -488,12 +468,12 @@ struct target *get_apps_groups_target(const char *id, struct target *target)
 		return NULL;
 	}
 
-	strncpy(w->id, nid, MAX_NAME);
+	strncpyz(w->id, nid, MAX_NAME);
 	w->idhash = simple_hash(w->id);
 
-	strncpy(w->name, nid, MAX_NAME);
+	strncpyz(w->name, nid, MAX_NAME);
 
-	strncpy(w->compare, nid, MAX_COMPARE_NAME);
+	strncpyz(w->compare, nid, MAX_COMPARE_NAME);
 	int len = strlen(w->compare);
 	if(w->compare[len - 1] == '*') {
 		w->compare[len - 1] = '\0';
@@ -531,7 +511,7 @@ int read_apps_groups_conf(const char *name)
 {
 	char filename[FILENAME_MAX + 1];
 
-	snprintf(filename, FILENAME_MAX, "%s/apps_%s.conf", config_dir, name);
+	snprintfz(filename, FILENAME_MAX, "%s/apps_%s.conf", config_dir, name);
 
 	if(unlikely(debug))
 		fprintf(stderr, "apps.plugin: process groups file: '%s'\n", filename);
@@ -583,8 +563,7 @@ int read_apps_groups_conf(const char *name)
 				t++;
 			}
 
-			strncpy(w->name, t, MAX_NAME);
-			w->name[MAX_NAME] = '\0';
+			strncpyz(w->name, t, MAX_NAME);
 			w->hidden = thidden;
 			w->debug = tdebug;
 
@@ -606,7 +585,7 @@ int read_apps_groups_conf(const char *name)
 	if(!apps_groups_default_target)
 		error("Cannot create default target");
 	else
-		strncpy(apps_groups_default_target->name, "other", MAX_NAME);
+		strncpyz(apps_groups_default_target->name, "other", MAX_NAME);
 
 	return 0;
 }
@@ -796,7 +775,7 @@ void del_pid_entry(pid_t pid)
 
 int read_proc_pid_cmdline(struct pid_stat *p) {
 	char filename[FILENAME_MAX + 1];
-	snprintf(filename, FILENAME_MAX, "%s/proc/%d/cmdline", host_prefix, p->pid);
+	snprintfz(filename, FILENAME_MAX, "%s/proc/%d/cmdline", host_prefix, p->pid);
 
 	int fd = open(filename, O_RDONLY, 0666);
 	if(unlikely(fd == -1)) return 1;
@@ -806,8 +785,7 @@ int read_proc_pid_cmdline(struct pid_stat *p) {
 
 	if(bytes <= 0) {
 		// copy the command to the command line
-		strncpy(p->cmdline, p->comm, MAX_CMDLINE);
-		p->cmdline[MAX_CMDLINE] = '\0';
+		strncpyz(p->cmdline, p->comm, MAX_CMDLINE);
 		return 0;
 	}
 
@@ -824,7 +802,7 @@ int read_proc_pid_cmdline(struct pid_stat *p) {
 int read_proc_pid_ownership(struct pid_stat *p) {
 	char filename[FILENAME_MAX + 1];
 
-	snprintf(filename, FILENAME_MAX, "%s/proc/%d", host_prefix, p->pid);
+	snprintfz(filename, FILENAME_MAX, "%s/proc/%d", host_prefix, p->pid);
 
 	// ----------------------------------------
 	// read uid and gid
@@ -844,7 +822,7 @@ int read_proc_pid_stat(struct pid_stat *p) {
 
 	char filename[FILENAME_MAX + 1];
 
-	snprintf(filename, FILENAME_MAX, "%s/proc/%d/stat", host_prefix, p->pid);
+	snprintfz(filename, FILENAME_MAX, "%s/proc/%d/stat", host_prefix, p->pid);
 
 	// ----------------------------------------
 
@@ -866,8 +844,7 @@ int read_proc_pid_stat(struct pid_stat *p) {
 
 	// parse the process name
 	unsigned int i = 0;
-	strncpy(p->comm, procfile_lineword(ff, 0, 1), MAX_COMPARE_NAME);
-	p->comm[MAX_COMPARE_NAME] = '\0';
+	strncpyz(p->comm, procfile_lineword(ff, 0, 1), MAX_COMPARE_NAME);
 
 	// p->pid			= atol(procfile_lineword(ff, 0, 0+i));
 	// comm is at 1
@@ -926,7 +903,7 @@ int read_proc_pid_statm(struct pid_stat *p) {
 
 	char filename[FILENAME_MAX + 1];
 
-	snprintf(filename, FILENAME_MAX, "%s/proc/%d/statm", host_prefix, p->pid);
+	snprintfz(filename, FILENAME_MAX, "%s/proc/%d/statm", host_prefix, p->pid);
 
 	ff = procfile_reopen(ff, filename, NULL, PROCFILE_FLAG_NO_ERROR_ON_FILE_IO);
 	if(!ff) return 1;
@@ -956,7 +933,7 @@ int read_proc_pid_io(struct pid_stat *p) {
 
 	char filename[FILENAME_MAX + 1];
 
-	snprintf(filename, FILENAME_MAX, "%s/proc/%d/io", host_prefix, p->pid);
+	snprintfz(filename, FILENAME_MAX, "%s/proc/%d/io", host_prefix, p->pid);
 
 	ff = procfile_reopen(ff, filename, NULL, PROCFILE_FLAG_NO_ERROR_ON_FILE_IO);
 	if(!ff) return 1;
@@ -1024,18 +1001,11 @@ int file_descriptor_iterator(avl *a) { if(a) {}; return 0; }
 
 avl_tree all_files_index = {
 		NULL,
-		file_descriptor_compare,
-#ifndef AVL_WITHOUT_PTHREADS
-#ifdef AVL_LOCK_WITH_MUTEX
-		PTHREAD_MUTEX_INITIALIZER
-#else
-		PTHREAD_RWLOCK_INITIALIZER
-#endif
-#endif /* AVL_WITHOUT_PTHREADS */
+		file_descriptor_compare
 };
 
 static struct file_descriptor *file_descriptor_find(const char *name, uint32_t hash) {
-	struct file_descriptor *result = NULL, tmp;
+	struct file_descriptor tmp;
 	tmp.hash = (hash)?hash:simple_hash(name);
 	tmp.name = name;
 	tmp.count = 0;
@@ -1044,8 +1014,7 @@ static struct file_descriptor *file_descriptor_find(const char *name, uint32_t h
 	tmp.magic = 0x0BADCAFE;
 #endif /* NETDATA_INTERNAL_CHECKS */
 
-	avl_search(&all_files_index, (avl *)&tmp, file_descriptor_iterator, (avl **)&result);
-	return result;
+	return (struct file_descriptor *)avl_search(&all_files_index, (avl *) &tmp);
 }
 
 #define file_descriptor_add(fd) avl_insert(&all_files_index, (avl *)(fd))
@@ -1211,7 +1180,7 @@ int file_descriptor_find_or_add(const char *name)
 int read_pid_file_descriptors(struct pid_stat *p) {
 	char dirname[FILENAME_MAX+1];
 
-	snprintf(dirname, FILENAME_MAX, "%s/proc/%d/fd", host_prefix, p->pid);
+	snprintfz(dirname, FILENAME_MAX, "%s/proc/%d/fd", host_prefix, p->pid);
 	DIR *fds = opendir(dirname);
 	if(fds) {
 		int c;
@@ -1235,7 +1204,7 @@ int read_pid_file_descriptors(struct pid_stat *p) {
 				if(debug) fprintf(stderr, "apps.plugin: extending fd memory slots for %s from %d to %d\n", p->comm, p->fds_size, fdid + 100);
 				p->fds = realloc(p->fds, (fdid + 100) * sizeof(int));
 				if(!p->fds) {
-					error("Cannot re-allocate fds for %s", p->comm);
+					fatal("Cannot re-allocate fds for %s", p->comm);
 					break;
 				}
 
@@ -1304,7 +1273,7 @@ int collect_data_for_all_processes_from_proc(void)
 {
 	char dirname[FILENAME_MAX + 1];
 
-	snprintf(dirname, FILENAME_MAX, "%s/proc", host_prefix);
+	snprintfz(dirname, FILENAME_MAX, "%s/proc", host_prefix);
 	DIR *dir = opendir(dirname);
 	if(!dir) return 0;
 
@@ -2267,7 +2236,7 @@ void send_charts_updates_to_netdata(struct target *root, const char *type, const
 	for (w = root; w ; w = w->next) {
 		if(w->target || (!w->processes && !w->exposed)) continue;
 
-		fprintf(stdout, "DIMENSION %s '' incremental 100 %llu %s\n", w->name, Hertz, w->hidden ? "hidden,noreset" : "noreset");
+		fprintf(stdout, "DIMENSION %s '' incremental 100 %u %s\n", w->name, hz, w->hidden ? "hidden,noreset" : "noreset");
 	}
 
 	fprintf(stdout, "CHART %s.mem '' '%s Dedicated Memory (w/o shared)' 'MB' mem %s.mem stacked 20003 %d\n", type, title, type, update_every);
@@ -2295,14 +2264,14 @@ void send_charts_updates_to_netdata(struct target *root, const char *type, const
 	for (w = root; w ; w = w->next) {
 		if(w->target || (!w->processes && !w->exposed)) continue;
 
-		fprintf(stdout, "DIMENSION %s '' incremental 100 %llu noreset\n", w->name, Hertz * processors);
+		fprintf(stdout, "DIMENSION %s '' incremental 100 %ld noreset\n", w->name, hz * processors);
 	}
 
 	fprintf(stdout, "CHART %s.cpu_system '' '%s CPU System Time (%ld%% = %ld core%s)' 'cpu time %%' cpu %s.cpu_system stacked 20021 %d\n", type, title, (processors * 100), processors, (processors>1)?"s":"", type, update_every);
 	for (w = root; w ; w = w->next) {
 		if(w->target || (!w->processes && !w->exposed)) continue;
 
-		fprintf(stdout, "DIMENSION %s '' incremental 100 %llu noreset\n", w->name, Hertz * processors);
+		fprintf(stdout, "DIMENSION %s '' incremental 100 %ld noreset\n", w->name, hz * processors);
 	}
 
 	fprintf(stdout, "CHART %s.major_faults '' '%s Major Page Faults (swap read)' 'page faults/s' swap %s.major_faults stacked 20010 %d\n", type, title, type, update_every);
@@ -2411,12 +2380,6 @@ void parse_args(int argc, char **argv)
 	}
 }
 
-unsigned long long sutime() {
-	struct timeval now;
-	gettimeofday(&now, NULL);
-	return now.tv_sec * 1000000ULL + now.tv_usec;
-}
-
 int main(int argc, char **argv)
 {
 	// debug_flags = D_PROCFILE;
@@ -2426,6 +2389,10 @@ int main(int argc, char **argv)
 
 	// disable syslog for apps.plugin
 	error_log_syslog = 0;
+
+	// set errors flood protection to 100 logs per hour
+	error_log_errors_per_period = 100;
+	error_log_throttle_period = 3600;
 
 	host_prefix = getenv("NETDATA_HOST_PREFIX");
 	if(host_prefix == NULL) {
@@ -2441,13 +2408,22 @@ int main(int argc, char **argv)
 	}
 	else info("Found NETDATA_CONFIG_DIR='%s'", config_dir);
 
+#ifdef NETDATA_INTERNAL_CHECKS
+	if(debug_flags != 0) {
+		struct rlimit rl = { RLIM_INFINITY, RLIM_INFINITY };
+		if(setrlimit(RLIMIT_CORE, &rl) != 0)
+			info("Cannot request unlimited core dumps for debugging... Proceeding anyway...");
+		prctl(PR_SET_DUMPABLE, 1, 0, 0, 0);
+	}
+#endif /* NETDATA_INTERNAL_CHECKS */
+
 	info("starting...");
 
 	procfile_adaptive_initial_allocation = 1;
 
 	time_t started_t = time(NULL);
 	time_t current_t;
-	Hertz = get_system_hertz();
+	get_HZ();
 	pid_max = get_system_pid_max();
 	processors = get_system_cpus();
 
@@ -2460,16 +2436,14 @@ int main(int argc, char **argv)
 		exit(1);
 	}
 
-	fprintf(stdout, "CHART netdata.apps_cpu '' 'Apps Plugin CPU' 'milliseconds/s' apps.plugin netdata.apps_cpu stacked 140000 %d\n", update_every);
-	fprintf(stdout, "DIMENSION user '' incremental 1 %d\n", 1000);
-	fprintf(stdout, "DIMENSION system '' incremental 1 %d\n", 1000);
-
-	fprintf(stdout, "CHART netdata.apps_files '' 'Apps Plugin Files' 'files/s' apps.plugin netdata.apps_files line 140001 %d\n", update_every);
-	fprintf(stdout, "DIMENSION files '' incremental 1 1\n");
-	fprintf(stdout, "DIMENSION pids '' absolute 1 1\n");
-	fprintf(stdout, "DIMENSION fds '' absolute 1 1\n");
-	fprintf(stdout, "DIMENSION targets '' absolute 1 1\n");
-
+	fprintf(stdout, "CHART netdata.apps_cpu '' 'Apps Plugin CPU' 'milliseconds/s' apps.plugin netdata.apps_cpu stacked 140000 %1$d\n"
+	                "DIMENSION user '' incremental 1 1000\n"
+	                "DIMENSION system '' incremental 1 1000\n"
+	                "CHART netdata.apps_files '' 'Apps Plugin Files' 'files/s' apps.plugin netdata.apps_files line 140001 %1$d\n"
+	                "DIMENSION files '' incremental 1 1\n"  
+                  "DIMENSION pids '' absolute 1 1\n"  
+	                "DIMENSION fds '' absolute 1 1\n"  
+	                "DIMENSION targets '' absolute 1 1\n", update_every);
 
 #ifndef PROFILING_MODE
 	unsigned long long sunext = (time(NULL) - (time(NULL) % update_every) + update_every) * 1000000ULL;
@@ -2480,11 +2454,11 @@ int main(int argc, char **argv)
 	for(;1; counter++) {
 #ifndef PROFILING_MODE
 		// delay until it is our time to run
-		while((sunow = sutime()) < sunext)
+		while((sunow = timems()) < sunext)
 			usleep((useconds_t)(sunext - sunow));
 
 		// find the next time we need to run
-		while(sutime() > sunext)
+		while(timems() > sunext)
 			sunext += update_every * 1000000ULL;
 #endif /* PROFILING_MODE */
 
@@ -2508,7 +2482,6 @@ int main(int argc, char **argv)
 		send_collected_data_to_netdata(groups_root_target, "groups", dt);
 
 		if(debug) fprintf(stderr, "apps.plugin: done Loop No %llu\n", counter);
-		fflush(NULL);
 
 		current_t = time(NULL);
 

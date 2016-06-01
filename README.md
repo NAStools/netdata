@@ -1,8 +1,10 @@
+[![Build Status](https://travis-ci.org/firehol/netdata.svg?branch=master)](https://travis-ci.org/firehol/netdata)
+
 # netdata
 
-#### 230.000+ views, 62.000+ visitors, 18.500+ downloads, 9.500+ github stars, 500+ forks, 14 days!
+##### 320.000+ views, 92.000+ visitors, 28.500+ downloads, 11.000+ github stars, 700+ forks, 1 month!
 
-And it still runs with 700+ git downloads... per day!
+And it still runs with 600+ git downloads... per day!
 
 **[Check what our users say about netdata](https://github.com/firehol/netdata/issues/148)**.
 
@@ -65,7 +67,7 @@ This is what it currently monitors (most with zero configuration):
 
 - **netfilter / iptables Linux firewall** (connections, connection tracker events, errors, etc)
 
-- **Linux anti-DDoS protection** (SYNPROXY metrics)
+- **Linux DDoS protection** (SYNPROXY metrics)
 
 - **Processes** (running, blocked, forks, active, etc)
 
@@ -76,6 +78,8 @@ This is what it currently monitors (most with zero configuration):
 - **Network QoS** (yes, the only tool that visualizes network `tc` classes in realtime)
 
    ![qos-tc-classes](https://cloud.githubusercontent.com/assets/2662304/14093004/68966020-f553-11e5-98fe-ffee2086fafd.gif)
+
+- **Linux Control Groups** (containers), systemd, lxc, docker, etc
 
 - **Applications**, by grouping the process tree (CPU, memory, disk reads, disk writes, swap, threads, pipes, sockets, etc)
 
@@ -99,6 +103,10 @@ This is what it currently monitors (most with zero configuration):
 
 - **NUT UPSes** (load, charge, battery voltage, temperature, utility metrics, output metrics)
 
+- **Tomcat** (accesses, threads, free memory, volume)
+
+- **PHP-FPM** (multiple instances, each reporting connections, requests, performance)
+
 - **SNMP devices** can be monitored too (although you will need to configure these)
 
 And you can extend it, by writing plugins that collect data from any source, using any computer language.
@@ -118,7 +126,7 @@ Use our **[automatic installer](https://github.com/firehol/netdata/wiki/Installa
 It should run on **any Linux** system. It has been tested on:
 
 - Gentoo
-- ArchLinux
+- Arch Linux
 - Ubuntu / Debian
 - CentOS
 - Fedora
@@ -132,3 +140,4 @@ It should run on **any Linux** system. It has been tested on:
 ## Documentation
 
 Check the **[netdata wiki](https://github.com/firehol/netdata/wiki)**.
+

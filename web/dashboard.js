@@ -12,6 +12,9 @@
 // var netdataNoBootstrap = true;		// do not load bootstrap
 // var netdataDontStart = true;			// do not start the thread to process the charts
 // var netdataErrorCallback = null;		// Callback function that will be invoked upon error
+// var netdataNoRegistry = true;		// Don't update the registry for this access
+// var netdataRegistryCallback = null;	// Callback function that will be invoked with one param,
+//                                         the URLs from the registry
 //
 // You can also set the default netdata server, using the following.
 // When this variable is not set, we assume the page is hosted on your
@@ -19,8 +22,28 @@
 // var netdataServer = "http://yourhost:19999"; // set your NetData server
 
 //(function(window, document, undefined) {
+
+	// ------------------------------------------------------------------------
+	// compatibility fixes
+
 	// fix IE issue with console
-	if(!window.console){ window.console = {log: function(){} }; }
+	if(!window.console) { window.console = { log: function(){} }; }
+
+	// if string.endsWith is not defined, define it
+	if(typeof String.prototype.endsWith !== 'function') {
+		String.prototype.endsWith = function(s) {
+			if(s.length > this.length) return false;
+			return this.slice(-s.length) === s;
+		};
+	}
+
+	// if string.startsWith is not defined, define it
+	if(typeof String.prototype.startsWith !== 'function') {
+		String.prototype.startsWith = function(s) {
+			if(s.length > this.length) return false;
+			return this.slice(s.length) === s;
+		};
+	}
 
 	// global namespace
 	var NETDATA = window.NETDATA || {};
@@ -53,7 +76,11 @@
 		NETDATA.serverDefault = netdataServer;
 	else {
 		var s = NETDATA._scriptSource();
-		NETDATA.serverDefault = s.replace(/\/dashboard.js(\?.*)*$/g, "");
+		if(s) NETDATA.serverDefault = s.replace(/\/dashboard.js(\?.*)*$/g, "");
+		else {
+			console.log('WARNING: Cannot detect the URL of the netdata server.');
+			NETDATA.serverDefault = null;
+		}
 	}
 
 	if(NETDATA.serverDefault === null)
@@ -80,7 +107,7 @@
 	NETDATA.google_js    		= 'https://www.google.com/jsapi';
 
 	NETDATA.themes = {
-		default: {
+		white: {
 			bootstrap_css: NETDATA.serverDefault + 'css/bootstrap.min.css',
 			dashboard_css: NETDATA.serverDefault + 'dashboard.css',
 			background: '#FFFFFF',
@@ -95,7 +122,7 @@
 			easypiechart_scale: '#dfe0e0',
 			gauge_pointer: '#C0C0C0',
 			gauge_stroke: '#F0F0F0',
-			gauge_gradient: true
+			gauge_gradient: false
 		},
 		slate: {
 			bootstrap_css: NETDATA.serverDefault + 'css/bootstrap.slate.min.css',
@@ -124,7 +151,7 @@
 	if(typeof netdataTheme !== 'undefined' && typeof NETDATA.themes[netdataTheme] !== 'undefined')
 		NETDATA.themes.current = NETDATA.themes[netdataTheme];
 	else
-		NETDATA.themes.current = NETDATA.themes.default;
+		NETDATA.themes.current = NETDATA.themes.white;
 
 	NETDATA.colors = NETDATA.themes.current.colors;
 
@@ -187,8 +214,6 @@
 										// Used with .current.global_pan_sync_time
 
 		last_resized: new Date().getTime(), // the timestamp of the last resize request
-
-		crossDomainAjax: false,			// enable this to request crossDomain AJAX
 
 		last_page_scroll: 0,			// the timestamp the last time the page was scrolled
 
@@ -282,6 +307,12 @@
 			libraries: 			false,
 			dygraph: 			false
 		}
+	};
+
+	NETDATA.statistics = {
+		refreshes_total: 0,
+		refreshes_active: 0,
+		refreshes_active_max: 0
 	};
 
 
@@ -461,7 +492,15 @@
 		403: { message: "Chart library not enabled/is failed", alert: false },
 		404: { message: "Chart not found", alert: false },
 		405: { message: "Cannot download charts index from server", alert: true },
-		406: { message: "Invalid charts index downloaded from server", alert: true }
+		406: { message: "Invalid charts index downloaded from server", alert: true },
+		407: { message: "Cannot HELLO netdata server", alert: false },
+		408: { message: "Netdata servers sent invalid response to HELLO", alert: false },
+		409: { message: "Cannot ACCESS netdata registry", alert: false },
+		410: { message: "Netdata registry ACCESS failed", alert: false },
+		411: { message: "Netdata registry server send invalid response to DELETE ", alert: false },
+		412: { message: "Netdata registry DELETE failed", alert: false },
+		413: { message: "Netdata registry server send invalid response to SWITCH ", alert: false },
+		414: { message: "Netdata registry SWITCH failed", alert: false }
 	};
 	NETDATA.errorLast = {
 		code: 0,
@@ -541,7 +580,6 @@
 
 			$.ajax({
 				url: host + '/api/v1/charts',
-				crossDomain: NETDATA.options.crossDomainAjax,
 				async: true,
 				cache: false
 			})
@@ -975,6 +1013,7 @@
 		this.units = self.data('units') || null;	// the units of the chart dimensions
 		this.append_options = self.data('append-options') || null;	// the units of the chart dimensions
 
+		this.running = false;						// boolean - true when the chart is being refreshed now
 		this.validated = false; 					// boolean - has the chart been validated?
 		this.enabled = true; 						// boolean - is the chart enabled for refresh?
 		this.paused = false;						// boolean - is the chart paused for any reason?
@@ -1098,7 +1137,7 @@
 				var w = that.element.offsetWidth;
 				if(w === null || w === 0) {
 					// the div is hidden
-					// this is resize the chart when next viewed
+					// this will resize the chart when next viewed
 					that.tm.last_resized = 0;
 				}
 				else
@@ -1167,7 +1206,7 @@
 			var lost = Math.max(h * 0.2, 5);
 			h -= lost;
 
-			// center the text, verically
+			// center the text, vertically
 			var paddingTop = (lost - 5) / 2;
 
 			// but check the width too
@@ -1247,8 +1286,8 @@
 			if(isHidden() === true) return;
 
 			if(that.chart_created === true) {
-				// we should destroy it
 				if(NETDATA.options.current.destroy_on_hide === true) {
+					// we should destroy it
 					init();
 				}
 				else {
@@ -1256,6 +1295,12 @@
 					that.element_chart.style.display = 'none';
 					if(that.element_legend !== null) that.element_legend.style.display = 'none';
 					that.tm.last_hidden = new Date().getTime();
+
+					// de-allocate data
+					// This works, but I not sure there are no corner cases somewhere
+					// so it is commented - if the user has memory issues he can
+					// set Destroy on Hide for all charts
+					// that.data = null;
 				}
 			}
 
@@ -2580,8 +2625,6 @@
 			if(this.debug === true)
 				this.log('updateChartWithData() called.');
 
-			this._updating = false;
-
 			// this may force the chart to be re-created
 			resizeChart();
 
@@ -2676,8 +2719,8 @@
 			if(NETDATA.globalPanAndZoom.isActive())
 				this.tm.last_autorefreshed = 0;
 			else {
-				if(NETDATA.options.current.parallel_refresher === true && NETDATA.options.current.concurrent_refreshes)
-					this.tm.last_autorefreshed = Math.round(now / this.data_update_every) * this.data_update_every;
+				if(NETDATA.options.current.parallel_refresher === true && NETDATA.options.current.concurrent_refreshes === true)
+					this.tm.last_autorefreshed = now - (now % this.data_update_every);
 				else
 					this.tm.last_autorefreshed = now;
 			}
@@ -2739,11 +2782,16 @@
 			if(this.debug === true)
 				this.log('updating from ' + this.data_url);
 
+			NETDATA.statistics.refreshes_total++;
+			NETDATA.statistics.refreshes_active++;
+
+			if(NETDATA.statistics.refreshes_active > NETDATA.statistics.refreshes_active_max)
+				NETDATA.statistics.refreshes_active_max = NETDATA.statistics.refreshes_active;
+
 			this._updating = true;
 
 			this.xhr = $.ajax( {
 				url: this.data_url,
-				crossDomain: NETDATA.options.crossDomainAjax,
 				cache: false,
 				async: true
 			})
@@ -2757,6 +2805,7 @@
 				error('data download failed for url: ' + that.data_url);
 			})
 			.always(function() {
+				NETDATA.statistics.refreshes_active--;
 				that._updating = false;
 				if(typeof callback === 'function') callback();
 			});
@@ -2813,12 +2862,19 @@
 			}
 		};
 
-		this.isAutoRefreshed = function() {
+		this.isAutoRefreshable = function() {
 			return (this.current.autorefresh);
 		};
 
 		this.canBeAutoRefreshed = function() {
 			var now = new Date().getTime();
+
+			if(this.running === true) {
+				if(this.debug === true)
+					this.log('I am already running');
+
+				return false;
+			}
 
 			if(this.enabled === false) {
 				if(this.debug === true)
@@ -2850,7 +2906,7 @@
 				return true;
 			}
 
-			if(this.isAutoRefreshed() === true) {
+			if(this.isAutoRefreshable() === true) {
 				// allow the first update, even if the page is not visible
 				if(this.updates_counter && this.updates_since_last_unhide && NETDATA.options.page_is_visible === false) {
 					if(NETDATA.options.debug.focus === true || this.debug === true)
@@ -2910,8 +2966,16 @@
 		};
 
 		this.autoRefresh = function(callback) {
-			if(this.canBeAutoRefreshed() === true) {
-				this.updateChart(callback);
+			if(this.canBeAutoRefreshed() === true && this.running === false) {
+				var state = this;
+
+				state.running = true;
+				state.updateChart(function() {
+					state.running = false;
+
+					if(typeof callback !== 'undefined')
+						callback();
+				});
 			}
 			else {
 				if(typeof callback !== 'undefined')
@@ -2948,7 +3012,6 @@
 
 				$.ajax( {
 					url:  this.host + this.chart_url,
-					crossDomain: NETDATA.options.crossDomainAjax,
 					cache: false,
 					async: true
 				})
@@ -3234,11 +3297,12 @@
 		var parallel = new Array();
 		var targets = NETDATA.options.targets;
 		var len = targets.length;
+		var state;
 		while(len--) {
-			if(targets[len].isVisible() === false)
+			state = targets[len];
+			if(state.isVisible() === false || state.running === true)
 				continue;
 
-			var state = targets[len];
 			if(state.library.initialized === false) {
 				if(state.library.enabled === true) {
 					state.library.initialize(NETDATA.chartRefresher);
@@ -3253,24 +3317,15 @@
 		}
 
 		if(parallel.length > 0) {
-			var parallel_jobs = parallel.length;
-
 			// this will execute the jobs in parallel
 			$(parallel).each(function() {
-				this.autoRefresh(function() {
-					parallel_jobs--;
-
-					if(parallel_jobs === 0) {
-						setTimeout(NETDATA.chartRefresher,
-							NETDATA.chartRefresherWaitTime());
-					}
-				});
+				this.autoRefresh();
 			})
 		}
-		else {
-			setTimeout(NETDATA.chartRefresher,
-				NETDATA.chartRefresherWaitTime());
-		}
+
+		// run the next refresh iteration
+		setTimeout(NETDATA.chartRefresher,
+			NETDATA.chartRefresherWaitTime());
 	};
 
 	NETDATA.parseDom = function(callback) {
@@ -3330,7 +3385,14 @@
 		$('.modal').on('hidden.bs.modal', NETDATA.onscroll);
 		$('.modal').on('shown.bs.modal', NETDATA.onscroll);
 
+		// bootstrap collapse switching
+		$('.collapse').on('hidden.bs.collapse', NETDATA.onscroll);
+		$('.collapse').on('shown.bs.collapse', NETDATA.onscroll);
+
 		NETDATA.parseDom(NETDATA.chartRefresher);
+
+		// Registry initialization
+		setTimeout(NETDATA.registry.init, 3000);
 	};
 
 	// ----------------------------------------------------------------------------------------------------------------
@@ -4623,7 +4685,7 @@
 			state.easyPieChartEvent.timer = null;
 		}
 
-		if(state.isAutoRefreshed() === true && state.data !== null) {
+		if(state.isAutoRefreshable() === true && state.data !== null) {
 			NETDATA.easypiechartChartUpdate(state, state.data);
 		}
 		else {
@@ -4674,7 +4736,7 @@
 	NETDATA.easypiechartChartUpdate = function(state, data) {
 		var value, max, pcent;
 
-		if(NETDATA.globalPanAndZoom.isActive() === true || state.isAutoRefreshed() === false) {
+		if(NETDATA.globalPanAndZoom.isActive() === true || state.isAutoRefreshable() === false) {
 			value = null;
 			max = 0;
 			pcent = 0;
@@ -4877,7 +4939,7 @@
 			state.gaugeEvent.timer = null;
 		}
 
-		if(state.isAutoRefreshed() === true && state.data !== null) {
+		if(state.isAutoRefreshable() === true && state.data !== null) {
 			NETDATA.gaugeChartUpdate(state, state.data);
 		}
 		else {
@@ -4931,7 +4993,7 @@
 	NETDATA.gaugeChartUpdate = function(state, data) {
 		var value, min, max;
 
-		if(NETDATA.globalPanAndZoom.isActive() === true || state.isAutoRefreshed() === false) {
+		if(NETDATA.globalPanAndZoom.isActive() === true || state.isAutoRefreshable() === false) {
 			value = 0;
 			min = 0;
 			max = 1;
@@ -4993,11 +5055,33 @@
 			colorStop: stopColor,		// just experiment with them
 			strokeColor: strokeColor,	// to see which ones work best for you
 			limitMax: true,
-			generateGradient: generateGradient,
+			generateGradient: (generateGradient === true)?true:false,
 			gradientType: 0
 		};
 
-		if(generateGradient === false && NETDATA.themes.current.gauge_gradient === true) {
+		if (generateGradient.constructor === Array) {
+			// example options:
+			// data-gauge-generate-gradient="[0, 50, 100]"
+			// data-gauge-gradient-percent-color-0="#FFFFFF"
+			// data-gauge-gradient-percent-color-50="#999900"
+			// data-gauge-gradient-percent-color-100="#000000"
+
+			options.percentColors = new Array();
+			var len = generateGradient.length;
+			while(len--) {
+				var pcent = generateGradient[len];
+				var color = self.data('gauge-gradient-percent-color-' + pcent.toString()) || false;
+				if(color !== false) {
+					var a = new Array();
+					a[0] = pcent / 100;
+					a[1] = color;
+					options.percentColors.unshift(a);
+				}
+			}
+			if(options.percentColors.length === 0)
+				delete options.percentColors;
+		}
+		else if(generateGradient === false && NETDATA.themes.current.gauge_gradient === true) {
 			options.percentColors = [
 				[0.0, NETDATA.colorLuminance(startColor, (lum_d * 10) - (lum_d * 0))],
 				[0.1, NETDATA.colorLuminance(startColor, (lum_d * 10) - (lum_d * 1))],
@@ -5304,12 +5388,13 @@
 	};
 
 	// ----------------------------------------------------------------------------------------------------------------
-	// Start up
+	// Load required JS libraries and CSS
 
 	NETDATA.requiredJs = [
 		{
 			url: NETDATA.serverDefault + 'lib/bootstrap.min.js',
 			isAlreadyLoaded: function() {
+				// check if bootstrap is loaded
 				if(typeof $().emulateTransitionEnd == 'function')
 					return true;
 				else {
@@ -5401,11 +5486,214 @@
 		NETDATA.loadRequiredCSS(++index);
 	};
 
+
+	// ----------------------------------------------------------------------------------------------------------------
+	// Registry of netdata hosts
+
+	NETDATA.registry = {
+		server: null,		// the netdata registry server
+		person_guid: null,	// the unique ID of this browser / user
+		machine_guid: null,	// the unique ID the netdata server that served dashboard.js
+		hostname: null,		// the hostname of the netdata server that served dashboard.js
+		urls: null,			// the user's other URLs
+		urls_array: null,	// the user's other URLs in an array
+
+		parsePersonUrls: function(person_urls) {
+			// console.log(person_urls);
+
+			if(person_urls) {
+				NETDATA.registry.urls = {};
+				NETDATA.registry.urls_array = new Array();
+
+				var now = new Date().getTime();
+				var apu = person_urls;
+				var i = apu.length;
+				while(i--) {
+					if(typeof NETDATA.registry.urls[apu[i][0]] === 'undefined') {
+						// console.log('adding: ' + apu[i][4] + ', ' + ((now - apu[i][2]) / 1000).toString());
+
+						var obj = {
+							guid: apu[i][0],
+							url: apu[i][1],
+							last_t: apu[i][2],
+							accesses: apu[i][3],
+							name: apu[i][4],
+							alternate_urls: new Array()
+						};
+
+						NETDATA.registry.urls[apu[i][0]] = obj;
+						NETDATA.registry.urls_array.push(obj);
+					}
+					else {
+						// console.log('appending: ' + apu[i][4] + ', ' + ((now - apu[i][2]) / 1000).toString());
+
+						var pu = NETDATA.registry.urls[apu[i][0]];
+						if(pu.last_t < apu[i][2]) {
+							pu.url = apu[i][1];
+							pu.last_t = apu[i][2];
+							pu.name = apu[i][4];
+						}
+						pu.accesses += apu[i][3];
+						pu.alternate_urls.push(apu[i][1]);
+					}
+				}
+			}
+
+			if(typeof netdataRegistryCallback === 'function')
+				netdataRegistryCallback(NETDATA.registry.urls_array);
+		},
+
+		init: function() {
+			if(typeof netdataNoRegistry !== 'undefined' && netdataNoRegistry)
+				return;
+
+			NETDATA.registry.hello(NETDATA.serverDefault, function(data) {
+				if(data) {
+					NETDATA.registry.server = data.registry;
+					NETDATA.registry.machine_guid = data.machine_guid;
+					NETDATA.registry.hostname = data.hostname;
+
+					NETDATA.registry.access(10, function (person_urls) {
+						NETDATA.registry.parsePersonUrls(person_urls);
+
+					});
+				}
+			});
+		},
+
+		hello: function(host, callback) {
+			// send HELLO to a netdata server:
+			// 1. verifies the server is reachable
+			// 2. responds with the registry URL, the machine GUID of this netdata server and its hostname
+			$.ajax({
+					url: host + '/api/v1/registry?action=hello',
+					async: true,
+					cache: false,
+					xhrFields: { withCredentials: true } // required for the cookie
+				})
+				.done(function(data) {
+					if(typeof data.status !== 'string' || data.status !== 'ok') {
+						NETDATA.error(408, host + ' response: ' + JSON.stringify(data));
+						data = null;
+					}
+
+					if(typeof callback === 'function')
+						callback(data);
+				})
+				.fail(function() {
+					NETDATA.error(407, host);
+
+					if(typeof callback === 'function')
+						callback(null);
+				});
+		},
+
+		access: function(max_redirects, callback) {
+			// send ACCESS to a netdata registry:
+			// 1. it lets it know we are accessing a netdata server (its machine GUID and its URL)
+			// 2. it responds with a list of netdata servers we know
+			// the registry identifies us using a cookie it sets the first time we access it
+			// the registry may respond with a redirect URL to send us to another registry
+			$.ajax({
+					url: NETDATA.registry.server + '/api/v1/registry?action=access&machine=' + NETDATA.registry.machine_guid + '&name=' + encodeURIComponent(NETDATA.registry.hostname) + '&url=' + encodeURIComponent(NETDATA.serverDefault), // + '&visible_url=' + encodeURIComponent(document.location),
+					async: true,
+					cache: false,
+					xhrFields: { withCredentials: true } // required for the cookie
+				})
+				.done(function(data) {
+					var redirect = null;
+					if(typeof data.registry === 'string')
+						redirect = data.registry;
+
+					if(typeof data.status !== 'string' || data.status !== 'ok') {
+						NETDATA.error(409, NETDATA.registry.server + ' responded with: ' + JSON.stringify(data));
+						data = null;
+					}
+
+					if(data === null && redirect !== null && max_redirects > 0) {
+						NETDATA.registry.server = redirect;
+						NETDATA.registry.access(max_redirects - 1, callback);
+					}
+					else {
+						if(typeof data.person_guid === 'string')
+							NETDATA.registry.person_guid = data.person_guid;
+
+						if(typeof callback === 'function')
+							callback(data.urls);
+					}
+				})
+				.fail(function() {
+					NETDATA.error(410, NETDATA.registry.server);
+
+					if(typeof callback === 'function')
+						callback(null);
+				});
+		},
+
+		delete: function(delete_url, callback) {
+			// send DELETE to a netdata registry:
+			$.ajax({
+				url: NETDATA.registry.server + '/api/v1/registry?action=delete&machine=' + NETDATA.registry.machine_guid + '&name=' + encodeURIComponent(NETDATA.registry.hostname) + '&url=' + encodeURIComponent(NETDATA.serverDefault) + '&delete_url=' + encodeURIComponent(delete_url),
+				async: true,
+				cache: false,
+				xhrFields: { withCredentials: true } // required for the cookie
+			})
+				.done(function(data) {
+					if(typeof data.status !== 'string' || data.status !== 'ok') {
+						NETDATA.error(411, NETDATA.registry.server + ' responded with: ' + JSON.stringify(data));
+						data = null;
+					}
+
+					if(typeof callback === 'function')
+						callback(data);
+				})
+				.fail(function() {
+					NETDATA.error(412, NETDATA.registry.server);
+
+					if(typeof callback === 'function')
+						callback(null);
+				});
+		},
+		
+		switch: function(new_person_guid, callback) {
+			// impersonate
+			$.ajax({
+				url: NETDATA.registry.server + '/api/v1/registry?action=switch&machine=' + NETDATA.registry.machine_guid + '&name=' + encodeURIComponent(NETDATA.registry.hostname) + '&url=' + encodeURIComponent(NETDATA.serverDefault) + '&to=' + new_person_guid,
+				async: true,
+				cache: false,
+				xhrFields: { withCredentials: true } // required for the cookie
+			})
+				.done(function(data) {
+					if(typeof data.status !== 'string' || data.status !== 'ok') {
+						NETDATA.error(413, NETDATA.registry.server + ' responded with: ' + JSON.stringify(data));
+						data = null;
+					}
+
+					if(typeof callback === 'function')
+						callback(data);
+				})
+				.fail(function() {
+					NETDATA.error(414, NETDATA.registry.server);
+
+					if(typeof callback === 'function')
+						callback(null);
+				});
+		}
+	};
+
+	// ----------------------------------------------------------------------------------------------------------------
+	// Boot it!
+
 	NETDATA.errorReset();
 	NETDATA.loadRequiredCSS(0);
 
 	NETDATA._loadjQuery(function() {
 		NETDATA.loadRequiredJs(0, function() {
+			if(typeof $().emulateTransitionEnd !== 'function') {
+				// bootstrap is not available
+				NETDATA.options.current.show_help = false;
+			}
+
 			if(typeof netdataDontStart === 'undefined' || !netdataDontStart) {
 				if(NETDATA.options.debug.main_loop === true)
 					console.log('starting chart refresh thread');
