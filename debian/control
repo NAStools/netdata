@@ -2,7 +2,7 @@ Source: netdata
 Section: net
 Priority: optional
 Maintainer: NAStools <dev@nas.tools>
-Build-Depends: debhelper (>=9), dh-autoreconf, pkg-config, autogen, automake, zlib1g-dev
+Build-Depends: debhelper (>=9), dh-autoreconf, pkg-config, autogen, automake, zlib1g-dev, uuid-dev
 Standards-Version: 3.9.6
 Homepage: https://github.com/nastools/netdata
 Vcs-Git: git://github.com/nastools/netdata.git
