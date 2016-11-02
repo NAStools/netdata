@@ -29,6 +29,12 @@ netdata.spec
 
 *.tar.*
 
+sitespeed-result/
+cov-int/
+netdata-coverity-analysis.tgz
+.coverity-token
+.coverity-build
+
 .cproject
 .idea/
 .project
@@ -58,12 +64,15 @@ web/gadget.xml
 web/index_new.html
 web/version.txt
 
+system/netdata-lsb
 system/netdata-openrc
 system/netdata-init-d
 system/netdata.logrotate
+python.d/python-modules-installer.sh
 
 netdata-installer.log
 netdata-uninstaller.sh
+netdata-updater.sh
 
 gmon.out
 gmon.txt
@@ -78,3 +87,5 @@ cmake_install.cmake
 contrib/debian/changelog
 profile/benchmark-dictionary
 profile/benchmark-registry
+
+*.pyc

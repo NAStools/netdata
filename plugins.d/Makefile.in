@@ -83,8 +83,13 @@ subdir = plugins.d
 DIST_COMMON = $(srcdir)/Makefile.in $(srcdir)/Makefile.am \
 	$(dist_plugins_SCRIPTS) $(dist_plugins_DATA)
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
-am__aclocal_m4_deps = $(top_srcdir)/m4/ax_pthread.m4 \
-	$(top_srcdir)/configure.ac
+am__aclocal_m4_deps = $(top_srcdir)/m4/ax_c___atomic.m4 \
+	$(top_srcdir)/m4/ax_c__generic.m4 \
+	$(top_srcdir)/m4/ax_c_mallinfo.m4 \
+	$(top_srcdir)/m4/ax_c_mallopt.m4 \
+	$(top_srcdir)/m4/ax_check_compile_flag.m4 \
+	$(top_srcdir)/m4/ax_pthread.m4 $(top_srcdir)/m4/jemalloc.m4 \
+	$(top_srcdir)/m4/tcmalloc.m4 $(top_srcdir)/configure.ac
 am__configure_deps = $(am__aclocal_m4_deps) $(CONFIGURE_DEPENDENCIES) \
 	$(ACLOCAL_M4)
 mkinstalldirs = $(install_sh) -d
@@ -208,6 +213,7 @@ PTHREAD_CFLAGS = @PTHREAD_CFLAGS@
 PTHREAD_LIBS = @PTHREAD_LIBS@
 SET_MAKE = @SET_MAKE@
 SHELL = @SHELL@
+SSE_CANDIDATE = @SSE_CANDIDATE@
 STRIP = @STRIP@
 UUID_CFLAGS = @UUID_CFLAGS@
 UUID_LIBS = @UUID_LIBS@
@@ -240,6 +246,8 @@ datarootdir = @datarootdir@
 docdir = @docdir@
 dvidir = @dvidir@
 exec_prefix = @exec_prefix@
+has_jemalloc = @has_jemalloc@
+has_tcmalloc = @has_tcmalloc@
 host = @host@
 host_alias = @host_alias@
 host_cpu = @host_cpu@
@@ -263,6 +271,8 @@ pluginsdir = @pluginsdir@
 prefix = @prefix@
 program_transform_name = @program_transform_name@
 psdir = @psdir@
+pythondir = @pythondir@
+registrydir = @registrydir@
 sbindir = @sbindir@
 sharedstatedir = @sharedstatedir@
 srcdir = @srcdir@
@@ -283,10 +293,13 @@ dist_plugins_DATA = \
 	$(NULL)
 
 dist_plugins_SCRIPTS = \
+	alarm-email.sh \
+	alarm-notify.sh \
 	cgroup-name.sh \
 	charts.d.dryrun-helper.sh \
 	charts.d.plugin \
 	node.d.plugin \
+	python.d.plugin \
 	tc-qos-helper.sh \
 	loopsleepms.sh.inc \
 	$(NULL)

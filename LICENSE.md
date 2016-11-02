@@ -67,12 +67,6 @@ connectivity is not available.
     [MIT License](https://github.com/minhur/bootstrap-toggle/blob/master/LICENSE)
 
 
-- [CSS Element Queries](https://github.com/marcj/css-element-queries)
-
-    Copyright Marc J. Schmidt
-    [MIT License](https://github.com/marcj/css-element-queries/blob/master/LICENSE)
-
-
 - [AVL C Library](http://freecode.com/projects/avl)
 
     Copyright 2000, Daniel Nagy, Budapest University of Technology and Economics
@@ -138,4 +132,24 @@ connectivity is not available.
     Copyright 2015, Joseph Huckaby
     [MIT License](https://github.com/jhuckaby/pixl-xml)
     
-    
+- [sensors](https://github.com/paroj/sensors.py)
+
+    Copyright 2014, Pavel Rojtberg
+    [LGPL 2.1 License](http://opensource.org/licenses/LGPL-2.1)
+
+- [PyYAML](https://bitbucket.org/blackjack/pysensors)
+
+    Copyright 2006, Kirill Simonov
+    [MIT License](http://pyyaml.org)
+
+- [bootstrap-table](http://bootstrap-table.wenzhixin.net.cn/)
+
+    Copyright (c) 2012-2016 Zhixin Wen <wenzhixin2010@gmail.com>
+    [MIT License](https://github.com/wenzhixin/bootstrap-table/blob/master/LICENSE)
+
+- [tableExport.jquery.plugin](https://github.com/hhurz/tableExport.jquery.plugin)
+
+    Copyright (c) 2015,2016 hhurz
+    [MIT License](http://rawgit.com/hhurz/tableExport.jquery.plugin/master/tableExport.js)
+
+

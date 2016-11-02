@@ -1,4 +1,4 @@
-#!/bin/bash
+# no need for shebang - this file is loaded from charts.d.plugin
 
 # Description: Tomcat netdata charts.d plugin
 # Author: Jorge Romero
@@ -6,10 +6,11 @@
 # the URL to download tomcat status info
 # usually http://localhost:8080/manager/status?XML=true
 tomcat_url=""
+tomcat_curl_opts=""
 
 # set tomcat username/password here
-tomcatUser=""
-tomcatPassword=""
+tomcat_user=""
+tomcat_password=""
 
 # _update_every is a special variable - it holds the number of seconds
 # between the calls of the _update() function
@@ -36,13 +37,23 @@ tomcat_check() {
 	  	echo >&2 "tomcat url is unset or set to the empty string"
 		return 1
 	fi
-	if [ -z "${tomcatUser}" ]; then
-    	  	echo >&2 "tomcat user is unset or set to the empty string"
-		return 1
+	if [ -z "${tomcat_user}" ]; then
+		# check backwards compatibility
+		if [ -z "${tomcatUser}" ]; then		
+    	  		echo >&2 "tomcat user is unset or set to the empty string"
+			return 1
+		else
+			tomcat_user="${tomcatUser}"
+		fi
 	fi
-	if [ -z "${tomcatPassword}" ]; then
-    	  	echo >&2 "tomcat password is unset or set to the empty string"
-		return 1
+	if [ -z "${tomcat_password}" ]; then
+		# check backwards compatibility
+		if [ -z "${tomcatPassword}" ]; then
+	    	  	echo >&2 "tomcat password is unset or set to the empty string"
+			return 1
+		else
+			tomcat_password="${tomcatPassword}"
+		fi
 	fi
 
 	# check if we can get to tomcat's status page
@@ -62,13 +73,14 @@ tomcat_check() {
 }
 
 tomcat_get() {
-	# Collect tomcat values
-	mapfile -t lines < <(curl -u "$tomcatUser":"$tomcatPassword" -Ss "$tomcat_url" |\
+	# collect tomcat values
+	tomcat_port="$(IFS=/ read -ra a <<< "$tomcat_url"; hostport=${a[2]}; echo "${hostport#*:}")"
+	mapfile -t lines < <(curl -u "$tomcat_user":"$tomcat_password" -Ss ${tomcat_curl_opts} "$tomcat_url" |\
 		xmlstarlet sel \
 			-t -m "/status/jvm/memory" -v @free \
-			-n -m "/status/connector[@name='\"http-bio-8080\"']/threadInfo" -v @currentThreadCount \
+			-n -m "/status/connector[@name='\"http-bio-$tomcat_port\"']/threadInfo" -v @currentThreadCount \
 			-n -v @currentThreadsBusy \
-			-n -m "/status/connector[@name='\"http-bio-8080\"']/requestInfo" -v @requestCount \
+			-n -m "/status/connector[@name='\"http-bio-$tomcat_port\"']/requestInfo" -v @requestCount \
 			-n -v @bytesSent -n -)
 
 	tomcat_jvm_freememory="${lines[0]}"

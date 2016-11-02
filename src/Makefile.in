@@ -83,10 +83,16 @@ sbin_PROGRAMS = netdata$(EXEEXT)
 plugins_PROGRAMS = apps.plugin$(EXEEXT)
 subdir = src
 DIST_COMMON = $(srcdir)/Makefile.in $(srcdir)/Makefile.am \
-	$(top_srcdir)/depcomp $(dist_cache_DATA) $(dist_log_DATA)
+	$(top_srcdir)/depcomp $(dist_cache_DATA) $(dist_log_DATA) \
+	$(dist_registry_DATA) $(dist_varlib_DATA)
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
-am__aclocal_m4_deps = $(top_srcdir)/m4/ax_pthread.m4 \
-	$(top_srcdir)/configure.ac
+am__aclocal_m4_deps = $(top_srcdir)/m4/ax_c___atomic.m4 \
+	$(top_srcdir)/m4/ax_c__generic.m4 \
+	$(top_srcdir)/m4/ax_c_mallinfo.m4 \
+	$(top_srcdir)/m4/ax_c_mallopt.m4 \
+	$(top_srcdir)/m4/ax_check_compile_flag.m4 \
+	$(top_srcdir)/m4/ax_pthread.m4 $(top_srcdir)/m4/jemalloc.m4 \
+	$(top_srcdir)/m4/tcmalloc.m4 $(top_srcdir)/configure.ac
 am__configure_deps = $(am__aclocal_m4_deps) $(CONFIGURE_DEPENDENCIES) \
 	$(ACLOCAL_M4)
 mkinstalldirs = $(install_sh) -d
@@ -94,24 +100,28 @@ CONFIG_HEADER = $(top_builddir)/config.h
 CONFIG_CLEAN_FILES =
 CONFIG_CLEAN_VPATH_FILES =
 am__installdirs = "$(DESTDIR)$(pluginsdir)" "$(DESTDIR)$(sbindir)" \
-	"$(DESTDIR)$(cachedir)" "$(DESTDIR)$(logdir)"
+	"$(DESTDIR)$(cachedir)" "$(DESTDIR)$(logdir)" \
+	"$(DESTDIR)$(registrydir)" "$(DESTDIR)$(varlibdir)"
 PROGRAMS = $(plugins_PROGRAMS) $(sbin_PROGRAMS)
 am_apps_plugin_OBJECTS = apps_plugin.$(OBJEXT) avl.$(OBJEXT) \
-	common.$(OBJEXT) log.$(OBJEXT) procfile.$(OBJEXT)
+	common.$(OBJEXT) log.$(OBJEXT) procfile.$(OBJEXT) \
+	web_buffer.$(OBJEXT)
 apps_plugin_OBJECTS = $(am_apps_plugin_OBJECTS)
 apps_plugin_LDADD = $(LDADD)
 am_netdata_OBJECTS = appconfig.$(OBJEXT) avl.$(OBJEXT) \
 	common.$(OBJEXT) daemon.$(OBJEXT) dictionary.$(OBJEXT) \
-	global_statistics.$(OBJEXT) log.$(OBJEXT) main.$(OBJEXT) \
-	plugin_checks.$(OBJEXT) plugin_idlejitter.$(OBJEXT) \
-	plugin_nfacct.$(OBJEXT) plugin_proc.$(OBJEXT) \
-	plugin_tc.$(OBJEXT) plugins_d.$(OBJEXT) popen.$(OBJEXT) \
-	proc_diskstats.$(OBJEXT) proc_interrupts.$(OBJEXT) \
-	proc_softirqs.$(OBJEXT) proc_loadavg.$(OBJEXT) \
-	proc_meminfo.$(OBJEXT) proc_net_dev.$(OBJEXT) \
-	proc_net_ip_vs_stats.$(OBJEXT) proc_net_netstat.$(OBJEXT) \
+	eval.$(OBJEXT) global_statistics.$(OBJEXT) health.$(OBJEXT) \
+	log.$(OBJEXT) main.$(OBJEXT) plugin_checks.$(OBJEXT) \
+	plugin_idlejitter.$(OBJEXT) plugin_nfacct.$(OBJEXT) \
+	plugin_proc.$(OBJEXT) plugin_tc.$(OBJEXT) plugins_d.$(OBJEXT) \
+	popen.$(OBJEXT) proc_diskstats.$(OBJEXT) \
+	proc_interrupts.$(OBJEXT) proc_softirqs.$(OBJEXT) \
+	proc_loadavg.$(OBJEXT) proc_meminfo.$(OBJEXT) \
+	proc_net_dev.$(OBJEXT) proc_net_ip_vs_stats.$(OBJEXT) \
+	proc_net_netstat.$(OBJEXT) proc_net_rpc_nfs.$(OBJEXT) \
 	proc_net_rpc_nfsd.$(OBJEXT) proc_net_snmp.$(OBJEXT) \
-	proc_net_snmp6.$(OBJEXT) proc_net_stat_conntrack.$(OBJEXT) \
+	proc_net_snmp6.$(OBJEXT) proc_net_softnet_stat.$(OBJEXT) \
+	proc_net_stat_conntrack.$(OBJEXT) \
 	proc_net_stat_synproxy.$(OBJEXT) proc_stat.$(OBJEXT) \
 	proc_self_mountinfo.$(OBJEXT) \
 	proc_sys_kernel_random_entropy_avail.$(OBJEXT) \
@@ -119,7 +129,8 @@ am_netdata_OBJECTS = appconfig.$(OBJEXT) avl.$(OBJEXT) \
 	sys_fs_cgroup.$(OBJEXT) procfile.$(OBJEXT) registry.$(OBJEXT) \
 	rrd.$(OBJEXT) rrd2json.$(OBJEXT) storage_number.$(OBJEXT) \
 	unit_test.$(OBJEXT) url.$(OBJEXT) web_buffer.$(OBJEXT) \
-	web_client.$(OBJEXT) web_server.$(OBJEXT)
+	web_buffer_svg.$(OBJEXT) web_client.$(OBJEXT) \
+	web_server.$(OBJEXT)
 netdata_OBJECTS = $(am_netdata_OBJECTS)
 am__DEPENDENCIES_1 =
 netdata_DEPENDENCIES = $(am__DEPENDENCIES_1) $(am__DEPENDENCIES_1) \
@@ -186,7 +197,8 @@ am__uninstall_files_from_dir = { \
     || { echo " ( cd '$$dir' && rm -f" $$files ")"; \
          $(am__cd) "$$dir" && rm -f $$files; }; \
   }
-DATA = $(dist_cache_DATA) $(dist_log_DATA)
+DATA = $(dist_cache_DATA) $(dist_log_DATA) $(dist_registry_DATA) \
+	$(dist_varlib_DATA)
 am__tagged_files = $(HEADERS) $(SOURCES) $(TAGS_FILES) $(LISP)
 # Read a list of newline-separated strings from the standard input,
 # and print each of them once, without duplicates.  Input order is
@@ -273,6 +285,7 @@ PTHREAD_CFLAGS = @PTHREAD_CFLAGS@
 PTHREAD_LIBS = @PTHREAD_LIBS@
 SET_MAKE = @SET_MAKE@
 SHELL = @SHELL@
+SSE_CANDIDATE = @SSE_CANDIDATE@
 STRIP = @STRIP@
 UUID_CFLAGS = @UUID_CFLAGS@
 UUID_LIBS = @UUID_LIBS@
@@ -305,6 +318,8 @@ datarootdir = @datarootdir@
 docdir = @docdir@
 dvidir = @dvidir@
 exec_prefix = @exec_prefix@
+has_jemalloc = @has_jemalloc@
+has_tcmalloc = @has_tcmalloc@
 host = @host@
 host_alias = @host_alias@
 host_cpu = @host_cpu@
@@ -328,6 +343,8 @@ pluginsdir = @pluginsdir@
 prefix = @prefix@
 program_transform_name = @program_transform_name@
 psdir = @psdir@
+pythondir = @pythondir@
+registrydir = @registrydir@
 sbindir = @sbindir@
 sharedstatedir = @sharedstatedir@
 srcdir = @srcdir@
@@ -361,6 +378,8 @@ AM_CFLAGS = \
 	$(NULL)
 
 dist_cache_DATA = .keep
+dist_varlib_DATA = .keep
+dist_registry_DATA = .keep
 dist_log_DATA = .keep
 netdata_SOURCES = \
 	appconfig.c appconfig.h \
@@ -368,7 +387,9 @@ netdata_SOURCES = \
 	common.c common.h \
 	daemon.c daemon.h \
 	dictionary.c dictionary.h \
+	eval.c eval.h \
 	global_statistics.c global_statistics.h \
+	health.c health.h \
 	log.c log.h \
 	main.c main.h \
 	plugin_checks.c plugin_checks.h \
@@ -386,9 +407,11 @@ netdata_SOURCES = \
 	proc_net_dev.c \
 	proc_net_ip_vs_stats.c \
 	proc_net_netstat.c \
+	proc_net_rpc_nfs.c \
 	proc_net_rpc_nfsd.c \
 	proc_net_snmp.c \
 	proc_net_snmp6.c \
+	proc_net_softnet_stat.c \
 	proc_net_stat_conntrack.c \
 	proc_net_stat_synproxy.c \
 	proc_stat.c \
@@ -405,6 +428,7 @@ netdata_SOURCES = \
 	unit_test.c unit_test.h \
 	url.c url.h \
 	web_buffer.c web_buffer.h \
+	web_buffer_svg.c web_buffer_svg.h \
 	web_client.c web_client.h \
 	web_server.c web_server.h \
 	$(NULL)
@@ -422,6 +446,7 @@ apps_plugin_SOURCES = \
 	common.c common.h \
 	log.c log.h \
 	procfile.c procfile.h \
+	web_buffer.c web_buffer.h \
 	$(NULL)
 
 all: all-am
@@ -563,7 +588,9 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/common.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/daemon.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/dictionary.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/eval.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/global_statistics.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/health.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/log.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/main.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/plugin_checks.Po@am__quote@
@@ -580,9 +607,11 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/proc_net_dev.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/proc_net_ip_vs_stats.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/proc_net_netstat.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/proc_net_rpc_nfs.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/proc_net_rpc_nfsd.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/proc_net_snmp.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/proc_net_snmp6.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/proc_net_softnet_stat.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/proc_net_stat_conntrack.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/proc_net_stat_synproxy.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/proc_self_mountinfo.Po@am__quote@
@@ -600,6 +629,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/unit_test.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/url.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/web_buffer.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/web_buffer_svg.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/web_client.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/web_server.Po@am__quote@
 
@@ -658,6 +688,48 @@ uninstall-dist_logDATA:
 	@list='$(dist_log_DATA)'; test -n "$(logdir)" || list=; \
 	files=`for p in $$list; do echo $$p; done | sed -e 's|^.*/||'`; \
 	dir='$(DESTDIR)$(logdir)'; $(am__uninstall_files_from_dir)
+install-dist_registryDATA: $(dist_registry_DATA)
+	@$(NORMAL_INSTALL)
+	@list='$(dist_registry_DATA)'; test -n "$(registrydir)" || list=; \
+	if test -n "$$list"; then \
+	  echo " $(MKDIR_P) '$(DESTDIR)$(registrydir)'"; \
+	  $(MKDIR_P) "$(DESTDIR)$(registrydir)" || exit 1; \
+	fi; \
+	for p in $$list; do \
+	  if test -f "$$p"; then d=; else d="$(srcdir)/"; fi; \
+	  echo "$$d$$p"; \
+	done | $(am__base_list) | \
+	while read files; do \
+	  echo " $(INSTALL_DATA) $$files '$(DESTDIR)$(registrydir)'"; \
+	  $(INSTALL_DATA) $$files "$(DESTDIR)$(registrydir)" || exit $$?; \
+	done
+
+uninstall-dist_registryDATA:
+	@$(NORMAL_UNINSTALL)
+	@list='$(dist_registry_DATA)'; test -n "$(registrydir)" || list=; \
+	files=`for p in $$list; do echo $$p; done | sed -e 's|^.*/||'`; \
+	dir='$(DESTDIR)$(registrydir)'; $(am__uninstall_files_from_dir)
+install-dist_varlibDATA: $(dist_varlib_DATA)
+	@$(NORMAL_INSTALL)
+	@list='$(dist_varlib_DATA)'; test -n "$(varlibdir)" || list=; \
+	if test -n "$$list"; then \
+	  echo " $(MKDIR_P) '$(DESTDIR)$(varlibdir)'"; \
+	  $(MKDIR_P) "$(DESTDIR)$(varlibdir)" || exit 1; \
+	fi; \
+	for p in $$list; do \
+	  if test -f "$$p"; then d=; else d="$(srcdir)/"; fi; \
+	  echo "$$d$$p"; \
+	done | $(am__base_list) | \
+	while read files; do \
+	  echo " $(INSTALL_DATA) $$files '$(DESTDIR)$(varlibdir)'"; \
+	  $(INSTALL_DATA) $$files "$(DESTDIR)$(varlibdir)" || exit $$?; \
+	done
+
+uninstall-dist_varlibDATA:
+	@$(NORMAL_UNINSTALL)
+	@list='$(dist_varlib_DATA)'; test -n "$(varlibdir)" || list=; \
+	files=`for p in $$list; do echo $$p; done | sed -e 's|^.*/||'`; \
+	dir='$(DESTDIR)$(varlibdir)'; $(am__uninstall_files_from_dir)
 
 ID: $(am__tagged_files)
 	$(am__define_uniq_tagged_files); mkid -fID $$unique
@@ -745,7 +817,7 @@ check-am: all-am
 check: check-am
 all-am: Makefile $(PROGRAMS) $(DATA)
 installdirs:
-	for dir in "$(DESTDIR)$(pluginsdir)" "$(DESTDIR)$(sbindir)" "$(DESTDIR)$(cachedir)" "$(DESTDIR)$(logdir)"; do \
+	for dir in "$(DESTDIR)$(pluginsdir)" "$(DESTDIR)$(sbindir)" "$(DESTDIR)$(cachedir)" "$(DESTDIR)$(logdir)" "$(DESTDIR)$(registrydir)" "$(DESTDIR)$(varlibdir)"; do \
 	  test -z "$$dir" || $(MKDIR_P) "$$dir"; \
 	done
 install: install-am
@@ -803,6 +875,7 @@ info: info-am
 info-am:
 
 install-data-am: install-dist_cacheDATA install-dist_logDATA \
+	install-dist_registryDATA install-dist_varlibDATA \
 	install-pluginsPROGRAMS
 	@$(NORMAL_INSTALL)
 	$(MAKE) $(AM_MAKEFLAGS) install-data-hook
@@ -850,6 +923,7 @@ ps: ps-am
 ps-am:
 
 uninstall-am: uninstall-dist_cacheDATA uninstall-dist_logDATA \
+	uninstall-dist_registryDATA uninstall-dist_varlibDATA \
 	uninstall-pluginsPROGRAMS uninstall-sbinPROGRAMS
 
 .MAKE: install-am install-data-am install-strip
@@ -860,14 +934,16 @@ uninstall-am: uninstall-dist_cacheDATA uninstall-dist_logDATA \
 	distclean-tags distdir dvi dvi-am html html-am info info-am \
 	install install-am install-data install-data-am \
 	install-data-hook install-dist_cacheDATA install-dist_logDATA \
-	install-dvi install-dvi-am install-exec install-exec-am \
-	install-html install-html-am install-info install-info-am \
-	install-man install-pdf install-pdf-am install-pluginsPROGRAMS \
-	install-ps install-ps-am install-sbinPROGRAMS install-strip \
-	installcheck installcheck-am installdirs maintainer-clean \
+	install-dist_registryDATA install-dist_varlibDATA install-dvi \
+	install-dvi-am install-exec install-exec-am install-html \
+	install-html-am install-info install-info-am install-man \
+	install-pdf install-pdf-am install-pluginsPROGRAMS install-ps \
+	install-ps-am install-sbinPROGRAMS install-strip installcheck \
+	installcheck-am installdirs maintainer-clean \
 	maintainer-clean-generic mostlyclean mostlyclean-compile \
 	mostlyclean-generic pdf pdf-am ps ps-am tags tags-am uninstall \
 	uninstall-am uninstall-dist_cacheDATA uninstall-dist_logDATA \
+	uninstall-dist_registryDATA uninstall-dist_varlibDATA \
 	uninstall-pluginsPROGRAMS uninstall-sbinPROGRAMS
 
 
