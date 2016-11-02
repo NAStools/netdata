@@ -1,7 +1,8 @@
-#!/bin/bash
+# no need for shebang - this file is loaded from charts.d.plugin
 
 # the URL to download apache status info
 apache_url="http://127.0.0.1:80/server-status?auto"
+apache_curl_opts=
 
 # _update_every is a special variable - it holds the number of seconds
 # between the calls of the _update() function
@@ -66,19 +67,14 @@ apache_detect() {
 
 	# we will not check of the Conns*
 	# keys, since these are apache 2.4 specific
-	if [ -z "${apache_key_accesses}" \
-		-o -z "${apache_key_kbytes}" \
-		-o -z "${apache_key_reqpersec}" \
-		-o -z "${apache_key_bytespersec}" \
-		-o -z "${apache_key_bytesperreq}" \
-		-o -z "${apache_key_busyworkers}" \
-		-o -z "${apache_key_idleworkers}" \
-		-o -z "${apache_key_scoreboard}" \
-		]
-		then
-		echo >&2 "apache: Invalid response or missing keys from apache server: ${*}"
-		return 1
-	fi
+	[ -z "${apache_key_accesses}"    ] && echo >&2 "apache: missing 'Total Accesses' from apache server: ${*}" && return 1
+	[ -z "${apache_key_kbytes}"      ] && echo >&2 "apache: missing 'Total kBytes' from apache server: ${*}" && return 1
+	[ -z "${apache_key_reqpersec}"   ] && echo >&2 "apache: missing 'ReqPerSec' from apache server: ${*}" && return 1
+	[ -z "${apache_key_bytespersec}" ] && echo >&2 "apache: missing 'BytesPerSec' from apache server: ${*}" && return 1
+	[ -z "${apache_key_bytesperreq}" ] && echo >&2 "apache: missing 'BytesPerReq' from apache server: ${*}" && return 1
+	[ -z "${apache_key_busyworkers}" ] && echo >&2 "apache: missing 'BusyWorkers' from apache server: ${*}" && return 1
+	[ -z "${apache_key_idleworkers}" ] && echo >&2 "apache: missing 'IdleWorkers' from apache server: ${*}" && return 1
+	[ -z "${apache_key_scoreboard}"  ] && echo >&2 "apache: missing 'Scoreboard' from apache server: ${*}" && return 1
 
 	if [ ! -z "${apache_key_connstotal}" \
 		-a ! -z "${apache_key_connsasyncwriting}" \
@@ -87,6 +83,8 @@ apache_detect() {
 		]
 		then
 		apache_has_conns=1
+	else
+		apache_has_conns=0
 	fi
 
 	return 0
@@ -94,7 +92,7 @@ apache_detect() {
 
 apache_get() {
 	local oIFS="${IFS}" ret
-	IFS=$':\n' apache_response=($(curl -Ss "${apache_url}"))
+	IFS=$':\n' apache_response=($(curl -Ss ${apache_curl_opts} "${apache_url}"))
 	ret=$?
 	IFS="${oIFS}"
 
@@ -167,27 +165,27 @@ apache_check() {
 # _create is called once, to create the charts
 apache_create() {
 	cat <<EOF
-CHART apache.bytesperreq '' "apache Lifetime Avg. Response Size" "bytes/request" statistics apache.bytesperreq area $((apache_priority + 8)) $apache_update_every
+CHART apache_local.bytesperreq '' "apache Lifetime Avg. Response Size" "bytes/request" statistics apache.bytesperreq area $((apache_priority + 8)) $apache_update_every
 DIMENSION size '' absolute 1 ${apache_decimal_detail}
-CHART apache.workers '' "apache Workers" "workers" workers apache.workers stacked $((apache_priority + 5)) $apache_update_every
+CHART apache_local.workers '' "apache Workers" "workers" workers apache.workers stacked $((apache_priority + 5)) $apache_update_every
 DIMENSION idle '' absolute 1 1
 DIMENSION busy '' absolute 1 1
-CHART apache.reqpersec '' "apache Lifetime Avg. Requests/s" "requests/s" statistics apache.reqpersec line $((apache_priority + 6)) $apache_update_every
+CHART apache_local.reqpersec '' "apache Lifetime Avg. Requests/s" "requests/s" statistics apache.reqpersec line $((apache_priority + 6)) $apache_update_every
 DIMENSION requests '' absolute 1 ${apache_decimal_detail}
-CHART apache.bytespersec '' "apache Lifetime Avg. Bandwidth/s" "kilobits/s" statistics apache.bytespersec area $((apache_priority + 7)) $apache_update_every
+CHART apache_local.bytespersec '' "apache Lifetime Avg. Bandwidth/s" "kilobits/s" statistics apache.bytespersec area $((apache_priority + 7)) $apache_update_every
 DIMENSION sent '' absolute 8 $((apache_decimal_detail * 1000))
-CHART apache.requests '' "apache Requests" "requests/s" requests apache.requests line $((apache_priority + 1)) $apache_update_every
+CHART apache_local.requests '' "apache Requests" "requests/s" requests apache.requests line $((apache_priority + 1)) $apache_update_every
 DIMENSION requests '' incremental 1 1
-CHART apache.net '' "apache Bandwidth" "kilobits/s" bandwidth apache.net area $((apache_priority + 3)) $apache_update_every
+CHART apache_local.net '' "apache Bandwidth" "kilobits/s" bandwidth apache.net area $((apache_priority + 3)) $apache_update_every
 DIMENSION sent '' incremental 8 1
 EOF
 
 	if [ ${apache_has_conns} -eq 1 ]
 		then
 		cat <<EOF2
-CHART apache.connections '' "apache Connections" "connections" connections apache.connections line $((apache_priority + 2)) $apache_update_every
+CHART apache_local.connections '' "apache Connections" "connections" connections apache.connections line $((apache_priority + 2)) $apache_update_every
 DIMENSION connections '' absolute 1 1
-CHART apache.conns_async '' "apache Async Connections" "connections" connections apache.conns_async stacked $((apache_priority + 4)) $apache_update_every
+CHART apache_local.conns_async '' "apache Async Connections" "connections" connections apache.conns_async stacked $((apache_priority + 4)) $apache_update_every
 DIMENSION keepalive '' absolute 1 1
 DIMENSION closing '' absolute 1 1
 DIMENSION writing '' absolute 1 1
@@ -211,22 +209,22 @@ apache_update() {
 
 	# write the result of the work.
 	cat <<VALUESEOF
-BEGIN apache.requests $1
+BEGIN apache_local.requests $1
 SET requests = $((apache_accesses))
 END
-BEGIN apache.net $1
+BEGIN apache_local.net $1
 SET sent = $((apache_kbytes))
 END
-BEGIN apache.reqpersec $1
+BEGIN apache_local.reqpersec $1
 SET requests = $((apache_reqpersec))
 END
-BEGIN apache.bytespersec $1
+BEGIN apache_local.bytespersec $1
 SET sent = $((apache_bytespersec))
 END
-BEGIN apache.bytesperreq $1
+BEGIN apache_local.bytesperreq $1
 SET size = $((apache_bytesperreq))
 END
-BEGIN apache.workers $1
+BEGIN apache_local.workers $1
 SET idle = $((apache_idleworkers))
 SET busy = $((apache_busyworkers))
 END
@@ -235,12 +233,12 @@ VALUESEOF
 	if [ ${apache_has_conns} -eq 1 ]
 		then
 	cat <<VALUESEOF2
-BEGIN apache.connections $1
+BEGIN apache_local.connections $1
 SET connections = $((apache_connstotal))
 END
-BEGIN apache.conns_async $1
+BEGIN apache_local.conns_async $1
 SET keepalive = $((apache_connsasynckeepalive))
-SET closing = $((apache_connsasyncwriting))
+SET closing = $((apache_connsasyncclosing))
 SET writing = $((apache_connsasyncwriting))
 END
 VALUESEOF2

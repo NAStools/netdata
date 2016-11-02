@@ -1343,4 +1343,11 @@ AC_SUBST([am__tar])
 AC_SUBST([am__untar])
 ]) # _AM_PROG_TAR
 
+m4_include([m4/ax_c___atomic.m4])
+m4_include([m4/ax_c__generic.m4])
+m4_include([m4/ax_c_mallinfo.m4])
+m4_include([m4/ax_c_mallopt.m4])
+m4_include([m4/ax_check_compile_flag.m4])
 m4_include([m4/ax_pthread.m4])
+m4_include([m4/jemalloc.m4])
+m4_include([m4/tcmalloc.m4])

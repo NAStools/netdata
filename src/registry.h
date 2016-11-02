@@ -1,9 +1,11 @@
-#include "web_client.h"
-
 #ifndef NETDATA_REGISTRY_H
 #define NETDATA_REGISTRY_H 1
 
 #define NETDATA_REGISTRY_COOKIE_NAME "netdata_registry_id"
+
+extern void registry_set_cookie(struct web_client *w, const char *guid);
+extern const char *registry_to_announce(void);
+extern int registry_verify_cookies_redirects(void);
 
 extern int registry_request_access_json(struct web_client *w, char *person_guid, char *machine_guid, char *url, char *name, time_t when);
 extern int registry_request_delete_json(struct web_client *w, char *person_guid, char *machine_guid, char *url, char *delete_url, time_t when);

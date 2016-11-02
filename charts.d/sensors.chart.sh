@@ -1,4 +1,4 @@
-#!/bin/sh
+# no need for shebang - this file is loaded from charts.d.plugin
 
 # sensors docs
 # https://www.kernel.org/doc/Documentation/hwmon/sysfs-interface
@@ -22,6 +22,8 @@ sensors_source_update=1
 sensors_update_every=
 
 sensors_priority=90000
+
+declare -A sensors_excluded=()
 
 sensors_find_all_files() {
 	find $1 -maxdepth $sensors_sys_depth -name \*_input -o -name temp 2>/dev/null
@@ -47,15 +49,20 @@ sensors_check() {
 
 sensors_check_files() {
 	# we only need sensors that report a non-zero value
+	# also remove not needed sensors
 
-	local f= v=
+	local f= v= excluded=
 	for f in $*
 	do
 		[ ! -f "$f" ] && continue
+		for ex in ${sensors_excluded[@]}; do
+			[[ $f =~ .*$ex$ ]] && excluded='1' && break
+		done
 
-		v="$( cat $f )"
+		[ "$excluded" != "1" ] && v="$( cat $f )" || v=0
 		v=$(( v + 1 - 1 ))
 		[ $v -ne 0 ] && echo "$f" && continue
+		excluded=
 
 		echo >&2 "$PROGRAM_NAME: sensors: $f gives zero values"
 	done
@@ -206,7 +213,7 @@ sensors_create() {
 				fi
 
 				echo "DIMENSION $fid '$labelname' $algorithm $multiplier $divisor"
-				echo >>$TMP_DIR/sensors.sh "printf \"SET $fid = \"; cat $file "
+				echo >>$TMP_DIR/sensors.sh "echo \"SET $fid = \"\$(< $file )"
 			done
 
 			echo >>$TMP_DIR/sensors.sh "echo END"

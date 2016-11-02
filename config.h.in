@@ -1,7 +1,35 @@
 /* config.h.in.  Generated from configure.ac by autoheader.  */
 
+/* compile and link with jemalloc */
+#undef ENABLE_JEMALLOC
+
+/* compile and link with tcmalloc */
+#undef ENABLE_TCMALLOC
+
+/* Define to 1 if you have the `accept4' function. */
+#undef HAVE_ACCEPT4
+
+/* Define to 1 if glibc mallinfo exists. */
+#undef HAVE_C_MALLINFO
+
+/* Define to 1 if glibc mallopt exists. */
+#undef HAVE_C_MALLOPT
+
+/* Define to 1 if C11-style _Generic works. */
+#undef HAVE_C__GENERIC
+
+/* Define to 1 if __atomic operations work. */
+#undef HAVE_C___ATOMIC
+
+/* Define to 1 if you have the declaration of `strerror_r', and to 0 if you
+   don't. */
+#undef HAVE_DECL_STRERROR_R
+
 /* Define to 1 if you have the <inttypes.h> header file. */
 #undef HAVE_INTTYPES_H
+
+/* Define to 1 if you have the <jemalloc/jemalloc.h> header file. */
+#undef HAVE_JEMALLOC_JEMALLOC_H
 
 /* Define to 1 if you have the <memory.h> header file. */
 #undef HAVE_MEMORY_H
@@ -17,6 +45,9 @@
 
 /* Define to 1 if you have the <stdlib.h> header file. */
 #undef HAVE_STDLIB_H
+
+/* Define to 1 if you have the `strerror_r' function. */
+#undef HAVE_STRERROR_R
 
 /* Define to 1 if you have the <strings.h> header file. */
 #undef HAVE_STRINGS_H
@@ -70,11 +101,17 @@
    your system. */
 #undef PTHREAD_CREATE_JOINABLE
 
+/* The size of `void *', as computed by sizeof. */
+#undef SIZEOF_VOID_P
+
 /* Define to 1 if you have the ANSI C header files. */
 #undef STDC_HEADERS
 
 /* math settings */
 #undef STORAGE_WITH_MATH
+
+/* Define to 1 if strerror_r returns char *. */
+#undef STRERROR_R_CHAR_P
 
 /* Enable extensions on AIX 3, Interix.  */
 #ifndef _ALL_SOURCE
@@ -121,6 +158,12 @@
    #define below would cause a syntax error. */
 #undef _UINT8_T
 
+/* Link/compile against jemalloc */
+#undef has_jemalloc
+
+/* Link/compile against tcmalloc */
+#undef has_tcmalloc
+
 /* Define to `__inline__' or `__inline' if that's what the C compiler
    calls it, or to nothing if 'inline' is not supported under any name.  */
 #ifndef __cplusplus
@@ -129,6 +172,9 @@
 
 /* gcc branch optimization */
 #undef likely
+
+/* jemalloc prefix */
+#undef prefix_jemalloc
 
 /* Define to the type of an unsigned integer type of width exactly 16 bits if
    such a type exists and the standard includes do not define it. */

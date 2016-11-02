@@ -4,7 +4,7 @@
 AC_PREREQ(2.60)
 
 define([VERSION_MAJOR], [1])
-define([VERSION_MINOR], [2])
+define([VERSION_MINOR], [4])
 define([VERSION_FIX], [0])
 define([VERSION_NUMBER], VERSION_MAJOR[.]VERSION_MINOR[.]VERSION_FIX)
 define([VERSION_SUFFIX], [])
@@ -34,6 +34,7 @@ AC_PROG_CC
 AC_PROG_INSTALL
 PKG_PROG_PKG_CONFIG
 AC_USE_SYSTEM_EXTENSIONS
+AC_CHECK_FUNCS_ONCE(accept4)
 
 AC_ARG_ENABLE(
 	[plugin-nfacct],
@@ -71,16 +72,50 @@ AC_ARG_WITH(
 	,
 	[with_user="nobody"]
 )
+AC_ARG_ENABLE(
+	[x86-sse],
+	[AS_HELP_STRING([--disable-x86-sse], [SSE/SS2 optimizations on x86 @<:@default enabled@:>@])],
+	,
+	[enable_x86_sse="yes"]
+)
 
 ACX_PTHREAD(, [AC_MSG_ERROR([Cannot initialize pthread environment])])
 LIBS="${PTHREAD_LIBS} ${LIBS}"
 CFLAGS="${CFLAGS} ${PTHREAD_CFLAGS}"
 CC="${PTHREAD_CC}"
 
+TS_CHECK_JEMALLOC
+if test "$has_jemalloc" = "1"; then
+	AC_DEFINE([ENABLE_JEMALLOC], [1], [compile and link with jemalloc])
+else
+	TS_CHECK_TCMALLOC
+	if test "$has_tcmalloc" = "1"; then
+		AC_DEFINE([ENABLE_TCMALLOC], [1], [compile and link with tcmalloc])
+	else
+		AC_C_MALLOPT
+		AC_C_MALLINFO
+	fi
+fi
+
 AC_TYPE_UINT8_T
 AC_TYPE_UINT16_T
 AC_TYPE_UINT32_T
 AC_C_INLINE
+AC_FUNC_STRERROR_R
+AC_C__GENERIC
+AC_C___ATOMIC
+AC_CHECK_SIZEOF([void *])
+AC_CANONICAL_HOST
+
+AC_ARG_VAR([SSE_CANDIDATE], [C compiler flags for SSE])
+AS_CASE([$host_cpu],
+	[i?86], [SSE_CANDIDATE="yes"]
+)
+AC_SUBST([SSE_CANDIDATE])
+if test "${SSE_CANDIDATE}" = "yes" -a "${enable_x86_sse}" = "yes"; then
+	opt="-msse2 -mfpmath=sse"
+	AX_CHECK_COMPILE_FLAG($opt, [CFLAGS="$CFLAGS $opt"], [])
+fi
 
 AC_ARG_VAR([MATH_CFLAGS], [C compiler flags for math])
 AC_ARG_VAR([MATH_LIBS], [linker flags for math])
@@ -149,9 +184,11 @@ fi
 AC_DEFINE_UNQUOTED([NETDATA_USER], ["${with_user}"], [use this user to drop privileged])
 
 AC_SUBST([varlibdir], ["\$(localstatedir)/lib/netdata"])
+AC_SUBST([registrydir], ["\$(localstatedir)/lib/netdata/registry"])
 AC_SUBST([cachedir], ["\$(localstatedir)/cache/netdata"])
 AC_SUBST([chartsdir], ["\$(libexecdir)/netdata/charts.d"])
 AC_SUBST([nodedir], ["\$(libexecdir)/netdata/node.d"])
+AC_SUBST([pythondir], ["\$(libexecdir)/netdata/python.d"])
 AC_SUBST([configdir], ["\$(sysconfdir)/netdata"])
 AC_SUBST([logdir], ["\$(localstatedir)/log/netdata"])
 AC_SUBST([pluginsdir], ["\$(libexecdir)/netdata/plugins.d"])
@@ -171,6 +208,7 @@ AC_CONFIG_FILES([
 	charts.d/Makefile
 	conf.d/Makefile
 	netdata.spec
+	python.d/Makefile
 	node.d/Makefile
 	plugins.d/Makefile
 	src/Makefile
