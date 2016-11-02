@@ -3,10 +3,10 @@ set -e
 
 case "$1" in
     configure)
-    if ! $(getent group nastools-netdata >/dev/null 2>&1); then
+    if ! getent group nastools-netdata >/dev/null 2>&1; then
         rn_nml -a group:nastools-netdata
     fi
-    if ! $(getent passwd nastools-netdata >/dev/null 2>&1); then
+    if ! getent passwd nastools-netdata >/dev/null 2>&1; then
         rn_nml -a user:nastools-netdata:nastools-netdata
     fi
     chattr +C /apps/nastools-netdata/var/cache/netdata
