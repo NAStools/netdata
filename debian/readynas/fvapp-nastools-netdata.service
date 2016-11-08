@@ -7,7 +7,7 @@ Type=simple
 WorkingDirectory=/tmp
 User=root
 Group=root
-ExecStart=/apps/nastools-netdata/sbin/netdata -nd -pidfile /var/run/nastools-netdata.pid
+ExecStart=/apps/nastools-netdata/sbin/netdata -D -P /var/run/nastools-netdata.pid
 
 [Install]
 WantedBy=multi-user.target

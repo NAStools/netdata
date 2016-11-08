@@ -1,43 +1,39 @@
 From: NAStools <dev@nas.tools>
-Date: Wed, 20 Apr 2016 15:59:47 -0700
+Date: Wed, 2 Nov 2016 17:58:37 -0700
 Subject: Add some ReadyNAS specific process groups
 
 ---
- conf.d/apps_groups.conf | 26 ++++++++++++++++++++++----
- 1 file changed, 22 insertions(+), 4 deletions(-)
+ conf.d/apps_groups.conf | 26 ++++++++++++++++++++++++--
+ 1 file changed, 24 insertions(+), 2 deletions(-)
 
 diff --git a/conf.d/apps_groups.conf b/conf.d/apps_groups.conf
-index 995ee5d..6381b09 100644
+index 57357a8..5e85bb5 100644
 --- a/conf.d/apps_groups.conf
 +++ b/conf.d/apps_groups.conf
-@@ -62,7 +62,7 @@ splunk: splunkd
- mongo: mongod
- lighttpd: lighttpd
- ftpd: proftpd in.tftpd
+@@ -120,13 +120,13 @@ xmpp: *vines* *prosody*
+ # monitoring
+ 
+ logs: ulogd* syslog* rsyslog* logrotate
+-nms: snmpd vnstatd smokeping zabbix* monit munin* mon openhpid watchdog tailon nrpe
++nms: snmpd vnstatd smokeping zabbix* monit munin* mon openhpid watchdog tailon nrpe readynas-agent
+ splunk: splunkd
+ 
+ # -----------------------------------------------------------------------------
+ # file systems and file servers
+ 
 -samba: smbd nmbd winbindd
 +samba: smbd nmbd winbindd smbd-notifyd
  nfs: rpcbind rpc.* nfs*
- ssh: ssh* scp
- X: X lightdm xdm pulseaudio gkrellm
-@@ -75,7 +75,7 @@ ntp: ntp*
- deluge: deluge*
- vbox: vbox* VBox*
- log: ulogd syslog* rsyslog* logrotate
--nms: snmpd vnstatd smokeping zabbix* monit munin* mon openhpid
-+nms: snmpd vnstatd smokeping zabbix* monit munin* mon openhpid readynas-agent
- ppp: ppp* pptp*
- inetd: inetd xinetd
- openvpn: openvpn
-@@ -90,7 +90,25 @@ wifi: hostapd wpa_supplicant
- system: systemd* udisks* udevd connmand ipv6_addrconf dbus-*
- ksmd: ksmd
- lxc: lxc*
--zfs-spl: spl_* 
-+zfs-spl: spl_*
- zfs-posix: z_*
- zfs-txg: txg_* zil_*
--zfs-arc: arc_* l2arc* 
-+zfs-arc: arc_* l2arc*
+ zfs: spl_* z_* txg_* zil_* arc_* l2arc*
+ btrfs: btrfs*
+@@ -217,3 +217,25 @@ sidekiq: *sidekiq*
+ java: java
+ chat: irssi
+ ipfs: ipfs
++
++# -----------------------------------------------------------------------------
++# ReadyNAS
++
 +readynasd: dbbroker.cgi fsbroker.cgi readynasd
 +btrfs: btrfs*
 +mdcsrepair: mdcsrepaird
