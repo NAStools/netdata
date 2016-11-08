@@ -2,7 +2,8 @@ Source: netdata
 Section: net
 Priority: optional
 Maintainer: NAStools <dev@nas.tools>
-Build-Depends: debhelper (>=9), dh-autoreconf, pkg-config, autogen, automake, zlib1g-dev, uuid-dev
+Build-Depends: debhelper (>=9), dh-autoreconf, pkg-config, autogen, automake,
+               zlib1g-dev, uuid-dev
 Standards-Version: 3.9.6
 Homepage: https://github.com/nastools/netdata
 Vcs-Git: git://github.com/nastools/netdata.git
@@ -10,7 +11,8 @@ Vcs-Browser: https://github.com/nastools/netdata
 
 Package: nastools-netdata
 Architecture: any
-Depends: readynasos (>= 6.4.2), libcap2-bin (>= 1:2.0), ${shlibs:Depends}, ${misc:Depends}
+Depends: readynasos (>= 6.6.0), libcap2-bin (>= 1:2.0), ${shlibs:Depends},
+         ${misc:Depends}
 Description: Highly optimized daemon providing real-time performance monitoring
  netdata is a highly optimized Linux daemon providing real-time performance
  monitoring for Linux systems, Applications, SNMP devices, over the web!
