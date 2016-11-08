@@ -1,3 +1,12 @@
+netdata (1.4.0-nt1) unstable; urgency=medium
+
+  * Fix up shell scripts
+  * Imported Upstream version 1.4.0
+  * Update configuration for netdata 1.4.0
+  * Update minimum firmware to 6.6.0
+
+ -- NAStools <dev@nas.tools>  Tue, 08 Nov 2016 13:36:36 -0800
+
 netdata (1.2.0-nt1) unstable; urgency=low
 
   * Imported Upstream version 1.2.0

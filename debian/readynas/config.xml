@@ -1,5 +1,5 @@
 <Application resource-id="nastools-netdata">
-  <Version>1.2.0-nt1</Version>
+  <Version>1.4.0-nt1</Version>
   <MinFirmwareVer>6.6.0</MinFirmwareVer>
   <Name>netdata NT</Name>
   <Author>NAStools</Author>
